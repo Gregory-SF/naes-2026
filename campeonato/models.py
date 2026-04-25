@@ -122,8 +122,20 @@ class Projeto(models.Model):
     nome = models.CharField(max_length=120)
     status = models.CharField(max_length=8, choices=StatusProjeto.choices, default=StatusProjeto.ATIVO)
     ano = models.PositiveSmallIntegerField()
-    organizacao = models.ForeignKey(Organizacao, on_delete=models.PROTECT, related_name='projetos')
-    equipe = models.ForeignKey(Equipe, on_delete=models.PROTECT, related_name='projetos')
+    organizacao = models.ForeignKey(
+        Organizacao,
+        on_delete=models.PROTECT,
+        related_name='projetos',
+        null=True,
+        blank=True,
+    )
+    equipe = models.ForeignKey(
+        Equipe,
+        on_delete=models.PROTECT,
+        related_name='projetos',
+        null=True,
+        blank=True,
+    )
     atualizado_em = models.DateTimeField(auto_now=True)
     cadastrado_em = models.DateTimeField(auto_now_add=True)
 
@@ -132,6 +144,9 @@ class Projeto(models.Model):
 
         if self.equipe_id and self.organizacao_id and self.equipe.organizacao_id != self.organizacao_id:
             mensagens.append('A equipe deve pertencer à mesma organização do projeto.')
+
+        if self.equipe_id and not self.organizacao_id:
+            mensagens.append('Informe a organização quando uma equipe for selecionada.')
 
         if self.equipe_id:
             quantidade_scrum_master = self.equipe.membros.filter(papel=PapelScrum.SCRUM_MASTER).count()

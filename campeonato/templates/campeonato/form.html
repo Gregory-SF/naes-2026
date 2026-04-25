@@ -1,94 +1,61 @@
-{% load static %}
-<!DOCTYPE html>
-<html lang="pt-BR">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ titulo|default:"Formulário" }}</title>
-    <link rel="stylesheet" href="{% static 'css/estilo.css' %}">
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            margin: 0;
-            background: #f4f6f8;
-            color: #1f2937;
-        }
-        .container {
-            max-width: 760px;
-            margin: 40px auto;
-            background: #ffffff;
-            border-radius: 10px;
-            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
-            padding: 24px;
-        }
-        h1 {
-            margin-top: 0;
-            font-size: 1.4rem;
-        }
-        form p {
-            margin-bottom: 14px;
-        }
-        label {
-            display: block;
-            margin-bottom: 6px;
-            font-weight: 600;
-        }
-        input, select, textarea {
-            width: 100%;
-            padding: 10px;
-            border: 1px solid #d1d5db;
-            border-radius: 6px;
-            box-sizing: border-box;
-        }
-        .acoes {
-            margin-top: 20px;
-            display: flex;
-            gap: 10px;
-        }
-        .btn {
-            border: 0;
-            border-radius: 6px;
-            padding: 10px 14px;
-            cursor: pointer;
-            text-decoration: none;
-            font-size: 0.95rem;
-        }
-        .btn-primary {
-            background: #2563eb;
-            color: #fff;
-        }
-        .btn-secondary {
-            background: #e5e7eb;
-            color: #111827;
-        }
-        .erro {
-            margin-bottom: 14px;
-            color: #b91c1c;
-            font-weight: 600;
-        }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <h1>{{ titulo|default:"Formulário" }}</h1>
+{% extends "campeonato/base.html" %}
 
-        <form method="post">
-            {% csrf_token %}
+{% block title %}{{ titulo|default:"Projeto" }}{% endblock %}
 
-            {% if form %}
-                {% if form.non_field_errors %}
-                    <div class="erro">{{ form.non_field_errors }}</div>
-                {% endif %}
-                {{ form.as_p }}
-            {% else %}
-                <p>Tem certeza que deseja excluir <strong>{{ object }}</strong>?</p>
-            {% endif %}
-
-            <div class="acoes">
-                <button type="submit" class="btn btn-primary">{{ botao|default:"Salvar" }}</button>
-                <a href="javascript:history.back()" class="btn btn-secondary">Voltar</a>
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-primary text-white py-3">
+                <h1 class="h5 mb-0 text-center">{{ titulo|default:"Projeto" }}</h1>
             </div>
-        </form>
+            <div class="card-body p-4">
+                <form method="post" novalidate>
+                    {% csrf_token %}
+
+                    {% if form %}
+                        {% if form.non_field_errors %}
+                            <div class="alert alert-danger">{{ form.non_field_errors }}</div>
+                        {% endif %}
+
+                        {% for field in form %}
+                            <div class="mb-3">
+                                <label for="{{ field.id_for_label }}" class="form-label fw-semibold">{{ field.label }}</label>
+                                {{ field }}
+                                {% if field.help_text %}
+                                    <div class="form-text">{{ field.help_text }}</div>
+                                {% endif %}
+                                {% if field.errors %}
+                                    <div class="text-danger small mt-1">{{ field.errors }}</div>
+                                {% endif %}
+                            </div>
+                        {% endfor %}
+                    {% else %}
+                        <div class="alert alert-warning mb-3">
+                            Tem certeza que deseja excluir <strong>{{ object }}</strong>?
+                        </div>
+                    {% endif %}
+
+                    <div class="d-flex justify-content-end gap-2 pt-2">
+                        <a href="{% url 'projeto-list' %}" class="btn btn-outline-secondary">Voltar</a>
+                        <button type="submit" class="btn {% if botao == 'Sim, excluir!' %}btn-danger{% else %}btn-success{% endif %}">
+                            {{ botao|default:"Salvar" }}
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
     </div>
-</body>
-</html>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    $(function () {
+        $('input, select, textarea').addClass('form-control');
+        $('input[type="checkbox"], input[type="radio"]').removeClass('form-control').addClass('form-check-input');
+        $('select[multiple]').removeClass('form-control').addClass('form-select');
+        $('select').not('[multiple]').removeClass('form-control').addClass('form-select');
+    });
+</script>
+{% endblock %}
