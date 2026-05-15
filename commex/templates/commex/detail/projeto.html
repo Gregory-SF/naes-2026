@@ -1,4 +1,4 @@
-{% extends "campeonato/base.html" %}
+{% extends "commex/base.html" %}
 
 {% block title %}Detalhes do Projeto{% endblock %}
 
@@ -29,11 +29,30 @@
                     <dt class="col-sm-4 text-secondary">Ano</dt>
                     <dd class="col-sm-8">{{ object.ano }}</dd>
 
-                    <dt class="col-sm-4 text-secondary">Organização</dt>
-                    <dd class="col-sm-8">{{ object.organizacao|default:'Nao associada' }}</dd>
+                    <dt class="col-sm-4 text-secondary">Dias da semana</dt>
+                    <dd class="col-sm-8">{{ object.dias_aula_display|default:'-' }}</dd>
 
-                    <dt class="col-sm-4 text-secondary">Equipe</dt>
-                    <dd class="col-sm-8">{{ object.equipe|default:'Nao associada' }}</dd>
+                    <dt class="col-sm-4 text-secondary">Repositorios</dt>
+                    <dd class="col-sm-8">
+                        {% if object.repositorios.exists %}
+                            {% for repo in object.repositorios.all %}
+                                <span class="badge text-bg-info me-1">{{ repo.nome }}</span>
+                            {% endfor %}
+                        {% else %}
+                            <span class="text-secondary">Nenhum</span>
+                        {% endif %}
+                    </dd>
+
+                    <dt class="col-sm-4 text-secondary">Sprints</dt>
+                    <dd class="col-sm-8">
+                        {% if object.sprints.exists %}
+                            {% for sprint in object.sprints.all %}
+                                <span class="badge text-bg-secondary me-1">{{ sprint.nome }}</span>
+                            {% endfor %}
+                        {% else %}
+                            <span class="text-secondary">Nenhuma</span>
+                        {% endif %}
+                    </dd>
 
                     <dt class="col-sm-4 text-secondary">Criado em</dt>
                     <dd class="col-sm-8">{{ object.cadastrado_em|date:'d/m/Y H:i' }}</dd>

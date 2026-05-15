@@ -1,0 +1,79 @@
+{% extends "commex/base.html" %}
+
+{% block title %}Equipes{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-4">
+    <div>
+        <h1 class="h4 mb-1 text-primary">Equipes</h1>
+        <p class="text-secondary mb-0">Gerencie as equipes vinculadas aos projetos e seus membros.</p>
+    </div>
+    <a href="{% url 'equipe-create' %}" class="btn btn-primary">Nova Equipe</a>
+</div>
+
+<div class="card border-0 shadow-sm">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Nome da Equipe</th>
+                        <th>Projeto Relacionado</th>
+                        <th>Qtd. Alunos</th>
+                        <th class="text-end">Ações</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for equipe in object_list %}
+                    <tr>
+                        <td class="fw-semibold">{{ equipe.nome }}</td>
+                        <td>
+                            <span class="text-muted small">Projeto:</span><br>
+                            {{ equipe.projeto.nome }}
+                        </td>
+                        <td>
+                            <span class="badge rounded-pill text-bg-info">
+                                {{ equipe.alunos.count }} alunos
+                            </span>
+                        </td>
+                        <td class="text-end">
+                            <div class="btn-group btn-group-sm" role="group">
+                                <a href="{% url 'equipe-detail' equipe.pk %}" class="btn btn-outline-info">Detalhar</a>
+                                <a href="{% url 'equipe-update' equipe.pk %}" class="btn btn-outline-primary">Editar</a>
+                                <a href="{% url 'equipe-delete' equipe.pk %}" class="btn btn-outline-danger">Excluir</a>
+                            </div>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="4" class="text-center py-4">
+                            <div class="alert alert-info mb-0">Nenhuma equipe cadastrada até o momento.</div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+{% if is_paginated %}
+<nav class="mt-4" aria-label="Paginação">
+    <ul class="pagination justify-content-center">
+        {% if page_obj.has_previous %}
+            <li class="page-item"><a class="page-link" href="?page={{ page_obj.previous_page_number }}">Anterior</a></li>
+        {% else %}
+            <li class="page-item disabled"><span class="page-link">Anterior</span></li>
+        {% endif %}
+
+        <li class="page-item active"><span class="page-link">{{ page_obj.number }}</span></li>
+
+        {% if page_obj.has_next %}
+            <li class="page-item"><a class="page-link" href="?page={{ page_obj.next_page_number }}">Próxima</a></li>
+        {% else %}
+            <li class="page-item disabled"><span class="page-link">Próxima</span></li>
+        {% endif %}
+    </ul>
+</nav>
+{% endif %}
+{% endblock %}

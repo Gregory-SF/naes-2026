@@ -22,8 +22,28 @@ class TipoRepositorio(models.TextChoices):
     FULLSTACK = 'FULLSTACK', 'Fullstack'
 
 
+class DiaSemana(models.TextChoices):
+    SEGUNDA = 'SEGUNDA', 'Segunda-feira'
+    TERCA = 'TERCA', 'Terca-feira'
+    QUARTA = 'QUARTA', 'Quarta-feira'
+    QUINTA = 'QUINTA', 'Quinta-feira'
+    SEXTA = 'SEXTA', 'Sexta-feira'
+
+class Sprint(models.Model):
+    nome = models.CharField(max_length=120)
+    data_inicio = models.DateField()
+    data_fim = models.DateField()
+
+    def __str__(self):
+        return f'{self.nome} ({self.data_inicio} - {self.data_fim})'
+
+    class Meta:
+        ordering = ['-data_inicio', 'nome']
+
+
 class Organizacao(models.Model):
     nome = models.CharField(max_length=120)
+    ativo = models.BooleanField(default=True)
     link = models.URLField(verbose_name='link da organização', unique=True)
     ano_letivo = models.PositiveSmallIntegerField()
     link_github_projects = models.URLField(
@@ -69,22 +89,46 @@ class Aluno(models.Model):
         ordering = ['nome']
 
 
-class Equipe(models.Model):
+class Projeto(models.Model):
     nome = models.CharField(max_length=120)
-    organizacao = models.ForeignKey(Organizacao, on_delete=models.PROTECT, related_name='equipes')
-    alunos = models.ManyToManyField(Aluno, through='MembroEquipe', related_name='equipes')
-    atualizado_em = models.DateTimeField(auto_now=True)
-    cadastrado_em = models.DateTimeField(auto_now_add=True)
+    status = models.CharField(max_length=8, choices=StatusProjeto.choices, default=StatusProjeto.ATIVO)
+    ano = models.PositiveSmallIntegerField()
+    dias_aula = models.JSONField(default=list, blank=True)
+    repositorios = models.ManyToManyField('Repositorio', related_name='projetos', blank=True)
+    sprints = models.ManyToManyField(Sprint, related_name='projetos', blank=True)
 
     def __str__(self):
-        return f'{self.nome} - {self.organizacao.nome}'
+        return f'{self.nome} ({self.ano})'
+
+    @property
+    def dias_aula_display(self):
+        labels = dict(DiaSemana.choices)
+        return ', '.join(labels.get(dia, dia) for dia in self.dias_aula)
+
+    class Meta:
+        ordering = ['-ano', 'nome']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['nome', 'ano'],
+                name='projeto_nome_ano_unico',
+            )
+        ]
+
+
+class Equipe(models.Model):
+    nome = models.CharField(max_length=120)
+    projeto = models.ForeignKey(Projeto, on_delete=models.PROTECT, related_name='equipes')
+    alunos = models.ManyToManyField(Aluno, through='MembroEquipe', related_name='equipes')
+
+    def __str__(self):
+        return f'{self.nome} - {self.projeto.nome}'
 
     class Meta:
         ordering = ['nome']
         constraints = [
             models.UniqueConstraint(
-                fields=['organizacao', 'nome'],
-                name='equipe_organizacao_nome_unico',
+                fields=['projeto', 'nome'],
+                name='equipe_projeto_nome_unico',
             )
         ]
 
@@ -93,7 +137,6 @@ class MembroEquipe(models.Model):
     equipe = models.ForeignKey(Equipe, on_delete=models.PROTECT, related_name='membros')
     aluno = models.ForeignKey(Aluno, on_delete=models.PROTECT, related_name='participacoes')
     papel = models.CharField(max_length=20, choices=PapelScrum.choices)
-    cadastrado_em = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
         return f'{self.aluno.nome} - {self.equipe.nome} ({self.get_papel_display()})'
@@ -118,79 +161,20 @@ class MembroEquipe(models.Model):
         ]
 
 
-class Projeto(models.Model):
-    nome = models.CharField(max_length=120)
-    status = models.CharField(max_length=8, choices=StatusProjeto.choices, default=StatusProjeto.ATIVO)
-    ano = models.PositiveSmallIntegerField()
-    organizacao = models.ForeignKey(
-        Organizacao,
-        on_delete=models.PROTECT,
-        related_name='projetos',
-        null=True,
-        blank=True,
-    )
-    equipe = models.ForeignKey(
-        Equipe,
-        on_delete=models.PROTECT,
-        related_name='projetos',
-        null=True,
-        blank=True,
-    )
-    atualizado_em = models.DateTimeField(auto_now=True)
-    cadastrado_em = models.DateTimeField(auto_now_add=True)
-
-    def clean(self):
-        mensagens = []
-
-        if self.equipe_id and self.organizacao_id and self.equipe.organizacao_id != self.organizacao_id:
-            mensagens.append('A equipe deve pertencer à mesma organização do projeto.')
-
-        if self.equipe_id and not self.organizacao_id:
-            mensagens.append('Informe a organização quando uma equipe for selecionada.')
-
-        if self.equipe_id:
-            quantidade_scrum_master = self.equipe.membros.filter(papel=PapelScrum.SCRUM_MASTER).count()
-            quantidade_product_owner = self.equipe.membros.filter(papel=PapelScrum.PRODUCT_OWNER).count()
-
-            if quantidade_scrum_master != 1:
-                mensagens.append('A equipe deve ter exatamente 1 Scrum Master.')
-            if quantidade_product_owner != 1:
-                mensagens.append('A equipe deve ter exatamente 1 Product Owner.')
-
-        if mensagens:
-            raise ValidationError({'equipe': ' '.join(mensagens)})
-
-    def __str__(self):
-        return f'{self.nome} ({self.ano})'
-
-    class Meta:
-        ordering = ['-ano', 'nome']
-        constraints = [
-            models.UniqueConstraint(
-                fields=['organizacao', 'nome', 'ano'],
-                name='projeto_organizacao_nome_ano_unico',
-            )
-        ]
-
-
 class Repositorio(models.Model):
-    nome = models.CharField(max_length=120)
+    nome = models.CharField(max_length=120, blank=True)
     link = models.URLField(unique=True)
+    alias = models.CharField(max_length=60, blank=True, help_text='Nome curto para exibição, ex: backend, frontend, etc.')
     linguagem_principal = models.CharField(max_length=60, blank=True)
-    tipo = models.CharField(max_length=10, choices=TipoRepositorio.choices)
-    organizacao = models.ForeignKey(
-        Organizacao,
-        on_delete=models.PROTECT,
-        related_name='repositorios',
-    )
-    atualizado_em = models.DateTimeField(auto_now=True)
-    cadastrado_em = models.DateTimeField(auto_now_add=True)
+    tipo = models.CharField(max_length=10, choices=TipoRepositorio.choices, blank=True)
 
     def __str__(self):
-        return self.nome
+        return self.alias or  self.nome
 
     class Meta:
         ordering = ['nome']
+
+        
 
 
 class Analise(models.Model):
@@ -216,8 +200,8 @@ class Analise(models.Model):
 
     def clean(self):
         if self.repositorio_id and self.projeto_id:
-            if self.repositorio.organizacao_id != self.projeto.organizacao_id:
-                raise ValidationError({'projeto': 'O projeto deve pertencer à mesma organização do repositório informado.'})
+            if not self.projeto.repositorios.filter(pk=self.repositorio_id).exists():
+                raise ValidationError({'repositorio': 'O repositorio deve estar associado ao projeto informado.'})
 
     def __str__(self):
         return f'Análise de {self.repositorio.nome} ({self.branch})'

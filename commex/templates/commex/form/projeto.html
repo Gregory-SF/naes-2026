@@ -1,0 +1,172 @@
+{% extends "commex/base.html" %}
+{% load crispy_forms_tags %}
+
+{% block title %}
+    {% if object %}Editar Projeto{% else %}Novo Projeto{% endif %}
+{% endblock %}
+
+{% block content %}
+
+<div class="container mt-4">
+
+    <div class="card shadow-sm border-0">
+        <div class="card-body">
+
+            <h2 class="h4 mb-4">
+                {% if object %}
+                    Editar Projeto
+                {% else %}
+                    Novo Projeto
+                {% endif %}
+            </h2>
+
+            {% if form.non_field_errors %}
+                <div class="alert alert-danger">
+                    {% for error in form.non_field_errors %}
+                        <div>{{ error }}</div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+
+            <form method="post" id="projeto-form">
+
+                {% csrf_token %}
+
+                {% crispy form %}
+
+                <hr class="my-4">
+
+                <h5 class="mb-3">Novo Repositório</h5>
+
+                <div id="repo-links-container">
+
+                    <div class="repo-link-row d-flex gap-2 mb-2">
+
+                        <input
+                            type="url"
+                            class="form-control repo-link-input"
+                            placeholder="https://github.com/usuario/repositorio"
+                        >
+
+                        <button
+                            type="button"
+                            class="btn btn-danger btn-remove-repo"
+                        >
+                            ✕
+                        </button>
+
+                    </div>
+
+                </div>
+
+                <button
+                    type="button"
+                    id="btn-add-repo-link"
+                    class="btn btn-outline-secondary btn-sm mt-2"
+                >
+                    + Adicionar outro link
+                </button>
+
+                {{ form.novo_repos_json }}
+
+                <div class="d-flex justify-content-end gap-2 mt-4">
+
+                    <a href="{% url 'projeto-list' %}"
+                       class="btn btn-outline-secondary">
+                        Cancelar
+                    </a>
+
+                    <button type="submit"
+                            class="btn btn-primary">
+                        Salvar
+                    </button>
+
+                </div>
+
+            </form>
+
+        </div>
+    </div>
+</div>
+
+<script>
+
+document.addEventListener('DOMContentLoaded', function () {
+
+    const container = document.getElementById('repo-links-container');
+    const addBtn = document.getElementById('btn-add-repo-link');
+    const form = document.getElementById('projeto-form');
+    const hiddenField = document.getElementById('id_novo_repos_json');
+
+    function updateRemoveButtons() {
+
+        const rows = container.querySelectorAll('.repo-link-row');
+
+        rows.forEach((row, index) => {
+
+            const btn = row.querySelector('.btn-remove-repo');
+
+            btn.style.display = rows.length > 1 ? 'block' : 'none';
+
+        });
+
+    }
+
+    function createRemoveEvent(button, row) {
+
+        button.addEventListener('click', function () {
+
+            row.remove();
+
+            updateRemoveButtons();
+
+        });
+
+    }
+
+    addBtn.addEventListener('click', function () {
+
+        const firstRow = container.querySelector('.repo-link-row');
+
+        const newRow = firstRow.cloneNode(true);
+
+        const input = newRow.querySelector('.repo-link-input');
+
+        input.value = '';
+
+        const removeBtn = newRow.querySelector('.btn-remove-repo');
+
+        createRemoveEvent(removeBtn, newRow);
+
+        container.appendChild(newRow);
+
+        updateRemoveButtons();
+
+    });
+
+    const firstRemoveBtn = document.querySelector('.btn-remove-repo');
+
+    createRemoveEvent(
+        firstRemoveBtn,
+        document.querySelector('.repo-link-row')
+    );
+
+    updateRemoveButtons();
+
+    form.addEventListener('submit', function () {
+
+        const links = Array.from(
+            document.querySelectorAll('.repo-link-input')
+        )
+        .map(input => input.value.trim())
+        .filter(link => link !== '');
+
+        hiddenField.value = JSON.stringify(links);
+
+    });
+
+});
+
+</script>
+
+{% endblock %}

@@ -1,0 +1,74 @@
+{% extends "commex/base.html" %}
+
+{% block title %}Detalhes da Equipe{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h1 class="h4 mb-0 text-primary">Detalhes da Equipe</h1>
+            <div class="d-flex gap-2">
+                <a href="{% url 'equipe-update' object.pk %}" class="btn btn-outline-primary btn-sm">Editar</a>
+                <a href="{% url 'equipe-list' %}" class="btn btn-outline-secondary btn-sm">Voltar</a>
+            </div>
+        </div>
+
+        <div class="card border-0 shadow-sm mb-4">
+            <div class="card-body">
+                <dl class="row mb-0">
+                    <dt class="col-sm-4 text-secondary">Nome da Equipe</dt>
+                    <dd class="col-sm-8 fw-semibold">{{ object.nome }}</dd>
+
+                    <dt class="col-sm-4 text-secondary">Projeto</dt>
+                    <dd class="col-sm-8">
+                        <a href="{% url 'projeto-detail' object.projeto.pk %}" class="text-decoration-none">
+                            {{ object.projeto.nome }}
+                        </a>
+                    </dd>
+
+                    <dt class="col-sm-4 text-secondary">Total de Membros</dt>
+                    <dd class="col-sm-8">{{ object.membros.count }}</dd>
+                </dl>
+            </div>
+        </div>
+
+        <h2 class="h5 mb-3 text-primary">Membros da Equipe</h2>
+        <div class="card border-0 shadow-sm">
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th class="ps-4">Aluno</th>
+                                <th>Papel</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for membro in object.membros.all %}
+                            <tr>
+                                <td class="ps-4">{{ membro.aluno.nome }}</td>
+                                <td>
+                                    <span class="badge {% if membro.papel == 'SCRUM_MASTER' %}text-bg-info{% elif membro.papel == 'PRODUCT_OWNER' %}text-bg-warning{% else %}text-bg-light border{% endif %}">
+                                        {{ membro.get_papel_display }}
+                                    </span>
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="2" class="text-center py-4 text-secondary">
+                                    Nenhum membro cadastrado nesta equipe.
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div class="mt-3 d-flex justify-content-end">
+            <a href="{% url 'equipe-delete' object.pk %}" class="btn btn-danger btn-sm">Excluir Equipe</a>
+        </div>
+    </div>
+</div>
+{% endblock %}

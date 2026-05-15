@@ -1,4 +1,4 @@
-{% extends "campeonato/base.html" %}
+{% extends "commex/base.html" %}
 
 {% block title %}{{ titulo|default:"Projeto" }}{% endblock %}
 
@@ -52,10 +52,10 @@
 {% block extra_js %}
 <script>
     $(function () {
-        $('input, select, textarea').addClass('form-control');
+        $('input, select, textarea').not('.form-select').addClass('form-control');
         $('input[type="checkbox"], input[type="radio"]').removeClass('form-control').addClass('form-check-input');
-        $('select[multiple]').removeClass('form-control').addClass('form-select');
-        $('select').not('[multiple]').removeClass('form-control').addClass('form-select');
+        $('select[multiple]').addClass('form-select');
+        $('select').not('[multiple]').addClass('form-select');
     });
 </script>
 {% endblock %}

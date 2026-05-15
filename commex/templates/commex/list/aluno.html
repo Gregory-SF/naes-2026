@@ -1,14 +1,14 @@
-{% extends "campeonato/base.html" %}
+{% extends "commex/base.html" %}
 
-{% block title %}Projetos{% endblock %}
+{% block title %}Alunos{% endblock %}
 
 {% block content %}
 <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-4">
     <div>
-        <h1 class="h4 mb-1 text-primary">Projetos</h1>
-        <p class="text-secondary mb-0">Gerencie os projetos vinculados a organizações e equipes.</p>
+        <h1 class="h4 mb-1 text-primary">Alunos</h1>
+        <p class="text-secondary mb-0">Gerencie o cadastro de estudantes e suas credenciais de acesso.</p>
     </div>
-    <a href="{% url 'projeto-create' %}" class="btn btn-primary">Novo Projeto</a>
+    <a href="{% url 'aluno-create' %}" class="btn btn-primary">Novo Aluno</a>
 </div>
 
 <div class="card border-0 shadow-sm">
@@ -18,37 +18,43 @@
                 <thead class="table-light">
                     <tr>
                         <th>Nome</th>
-                        <th>Status</th>
-                        <th>Ano</th>
-                        <th>Organização</th>
-                        <th>Equipe</th>
+                        <th>RA</th>
+                        <th>E-mail</th>
+                        <th>Usuário Vinculado</th>
+                        <th>Data de Cadastro</th>
                         <th class="text-end">Ações</th>
                     </tr>
                 </thead>
                 <tbody>
-                    {% for projeto in object_list %}
+                    {% for aluno in object_list %}
                     <tr>
-                        <td class="fw-semibold">{{ projeto.nome }}</td>
+                        <td class="fw-semibold">{{ aluno.nome }}</td>
+                        <td><code class="text-dark">{{ aluno.ra }}</code></td>
+                        <td>{{ aluno.email }}</td>
                         <td>
-                            <span class="badge {% if projeto.status == 'ATIVO' %}text-bg-success{% else %}text-bg-secondary{% endif %}">
-                                {{ projeto.get_status_display }}
-                            </span>
+                            {% if aluno.usuario %}
+                                <span class="badge text-bg-light border text-secondary">
+                                    <i class="bi bi-person-check-fill"></i> {{ aluno.usuario.username }}
+                                </span>
+                            {% else %}
+                                <span class="badge text-bg-warning-subtle text-warning-emphasis">Sem acesso</span>
+                            {% endif %}
                         </td>
-                        <td>{{ projeto.ano }}</td>
-                        <td>{{ projeto.organizacao|default:'Nao associada' }}</td>
-                        <td>{{ projeto.equipe|default:'Nao associada' }}</td>
+                        <td class="text-muted small">
+                            {{ aluno.cadastrado_em|date:"d/m/Y" }}
+                        </td>
                         <td class="text-end">
                             <div class="btn-group btn-group-sm" role="group">
-                                <a href="{% url 'projeto-detail' projeto.pk %}" class="btn btn-outline-info">Detalhar</a>
-                                <a href="{% url 'projeto-update' projeto.pk %}" class="btn btn-outline-primary">Editar</a>
-                                <a href="{% url 'projeto-delete' projeto.pk %}" class="btn btn-outline-danger">Excluir</a>
+                                <a href="{% url 'aluno-detail' aluno.pk %}" class="btn btn-outline-info">Detalhar</a>
+                                <a href="{% url 'aluno-update' aluno.pk %}" class="btn btn-outline-primary">Editar</a>
+                                <a href="{% url 'aluno-delete' aluno.pk %}" class="btn btn-outline-danger">Excluir</a>
                             </div>
                         </td>
                     </tr>
                     {% empty %}
                     <tr>
                         <td colspan="6" class="text-center py-4">
-                            <div class="alert alert-info mb-0">Nenhum projeto cadastrado até o momento.</div>
+                            <div class="alert alert-info mb-0">Nenhum aluno cadastrado até o momento.</div>
                         </td>
                     </tr>
                     {% endfor %}
