@@ -54,19 +54,47 @@
             </button>
             <div class="collapse navbar-collapse justify-content-center" id="menuPrincipal">
                 <ul class="navbar-nav gap-lg-3 text-center">
-                    <li class="nav-item">
-                        <a class="nav-link" href="{% url 'projeto-list' %}">Projetos</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="{% url 'projeto-create' %}">Novo Projeto</a>
-                    </li>
-                    <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">Ações</a>
-                        <ul class="dropdown-menu border-0 shadow">
-                            <li><a class="dropdown-item" href="{% url 'projeto-list' %}">Listar projetos</a></li>
-                            <li><a class="dropdown-item" href="{% url 'projeto-create' %}">Cadastrar projeto</a></li>
-                        </ul>
-                    </li>
+                    {% if user.is_authenticated %}
+                        <li class="nav-item">
+                            <a class="nav-link" href="{% url 'projeto-list' %}">Projetos</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="{% url 'equipe-list' %}">Equipes</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="{% url 'sprint-list' %}">Sprints</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="{% url 'projeto-create' %}">Novo Projeto</a>
+                        </li>
+                        <li class="nav-item dropdown">
+                            <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">Ações</a>
+                            <ul class="dropdown-menu border-0 shadow">
+                                <li><a class="dropdown-item" href="{% url 'projeto-list' %}">Listar projetos</a></li>
+                                <li><a class="dropdown-item" href="{% url 'projeto-create' %}">Cadastrar projeto</a></li>
+                                <li><a class="dropdown-item" href="{% url 'equipe-list' %}">Listar equipes</a></li>
+                                <li><a class="dropdown-item" href="{% url 'sprint-list' %}">Listar sprints</a></li>
+                                <li><a class="dropdown-item" href="{% url 'configuracoes-globais' %}">Configurações globais</a></li>
+                                <li><a class="dropdown-item" href="{% url 'analysis-start' %}">Iniciar análise</a></li>
+                                <li><a class="dropdown-item" href="{% url 'analysis-branches' %}">Branches</a></li>
+                                <li><a class="dropdown-item" href="{% url 'password_change' %}">Alterar senha</a></li>
+                            </ul>
+                        </li>
+                    {% endif %}
+                </ul>
+                <ul class="navbar-nav ms-auto">
+                    {% if user.is_authenticated %}
+                        <li class="nav-item">
+                            <form method="post" action="{% url 'logout' %}" class="d-inline">
+                                {% csrf_token %}
+                                <button class="btn btn-link nav-link" type="submit">Sair</button>
+                            </form>
+                        </li>
+                    {% else %}
+                        <li class="nav-item">
+                            <a class="nav-link" href="{% url 'login' %}">Entrar</a>
+                        </li>
+                    {% endif %}
                 </ul>
             </div>
         </div>

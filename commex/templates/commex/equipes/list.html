@@ -1,0 +1,23 @@
+{% extends "commex/base.html" %}
+{% block title %}Equipes{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h1 class="h4 mb-0">Equipes</h1>
+  <a class="btn btn-primary" href="{% url 'equipe-create' %}">Nova equipe</a>
+</div>
+<div class="card shadow-sm border-0"><div class="table-responsive"><table class="table mb-0">
+<thead><tr><th>Equipe</th><th>Projeto</th><th>Status</th><th>Ações</th></tr></thead>
+<tbody>
+{% for equipe in object_list %}
+<tr>
+<td>{{ equipe.nome }}</td>
+<td>{{ equipe.projeto.nome }}</td>
+<td>{% if equipe.ativo %}Ativa{% else %}Inativa{% endif %}</td>
+<td>
+  <a class="btn btn-sm btn-outline-info" href="{% url 'equipe-detail' equipe.pk %}">Detalhar</a>
+  <a class="btn btn-sm btn-outline-primary" href="{% url 'equipe-update' equipe.pk %}">Editar</a>
+</td>
+</tr>
+{% empty %}<tr><td colspan="4" class="text-center">Nenhuma equipe.</td></tr>{% endfor %}
+</tbody></table></div></div>
+{% endblock %}

@@ -1,0 +1,12 @@
+{% extends "commex/base.html" %}
+{% block title %}Remover membro{% endblock %}
+{% block content %}
+<div class="card card-body shadow-sm">
+  <h1 class="h5">Remover membro</h1>
+  <p>Deseja remover <strong>{{ object.aluno.nome }}</strong> da equipe <strong>{{ object.equipe.nome }}</strong>?</p>
+  <form method="post">{% csrf_token %}
+    <button class="btn btn-danger" type="submit">Remover</button>
+    <a class="btn btn-outline-secondary" href="{% url 'equipe-update' object.equipe.pk %}">Cancelar</a>
+  </form>
+</div>
+{% endblock %}

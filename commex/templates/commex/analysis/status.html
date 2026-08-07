@@ -1,0 +1,20 @@
+{% extends "commex/base.html" %}
+{% block title %}Status de análise{% endblock %}
+{% block content %}
+<h1 class="h4 mb-3">Status de análises</h1>
+{% if object %}
+<div class="card card-body shadow-sm mb-3">
+  <h2 class="h6">Execução #{{ object.id }}</h2>
+  <p>Projeto: {{ object.projeto.nome }}</p>
+  <p>Repositório: {{ object.repositorio.nome|default:object.repositorio.link }}</p>
+  <p>Branch: {{ object.branch.nome }}</p>
+  <p>Status: {{ object.get_status_display }}</p>
+  <p>Progresso: {{ object.progresso_percentual }}%</p>
+  <p>Commits importados: {{ object.commits.count }}</p>
+  {% if object.erro %}<div class="alert alert-danger">{{ object.erro }}</div>{% endif %}
+</div>
+{% endif %}
+<div class="card shadow-sm border-0"><div class="table-responsive"><table class="table mb-0"><thead><tr><th>#</th><th>Projeto</th><th>Repo</th><th>Branch</th><th>Status</th><th></th></tr></thead><tbody>
+{% for e in execucoes %}<tr><td>{{ e.id }}</td><td>{{ e.projeto.nome }}</td><td>{{ e.repositorio.nome|default:e.repositorio.link }}</td><td>{{ e.branch.nome }}</td><td>{{ e.get_status_display }}</td><td><a href="{% url 'analysis-status' e.pk %}">abrir</a></td></tr>{% empty %}<tr><td colspan="6" class="text-center">Sem execuções.</td></tr>{% endfor %}
+</tbody></table></div></div>
+{% endblock %}

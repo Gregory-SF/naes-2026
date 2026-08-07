@@ -29,28 +29,23 @@
                     <dt class="col-sm-4 text-secondary">Ano</dt>
                     <dd class="col-sm-8">{{ object.ano }}</dd>
 
-                    <dt class="col-sm-4 text-secondary">Dias da semana</dt>
-                    <dd class="col-sm-8">{{ object.dias_aula_display|default:'-' }}</dd>
-
-                    <dt class="col-sm-4 text-secondary">Repositorios</dt>
+                    <dt class="col-sm-4 text-secondary">Organização / Conta GitHub</dt>
                     <dd class="col-sm-8">
-                        {% if object.repositorios.exists %}
-                            {% for repo in object.repositorios.all %}
-                                <span class="badge text-bg-info me-1">{{ repo.nome }}</span>
-                            {% endfor %}
+                        {% if object.link_organizacao_github %}
+                            <a href="{{ object.link_organizacao_github }}" target="_blank" rel="noopener noreferrer">{{ object.link_organizacao_github }}</a>
                         {% else %}
-                            <span class="text-secondary">Nenhum</span>
+                            <span class="text-secondary">-</span>
                         {% endif %}
                     </dd>
 
-                    <dt class="col-sm-4 text-secondary">Sprints</dt>
+                    <dt class="col-sm-4 text-secondary">Repositórios</dt>
                     <dd class="col-sm-8">
-                        {% if object.sprints.exists %}
-                            {% for sprint in object.sprints.all %}
-                                <span class="badge text-bg-secondary me-1">{{ sprint.nome }}</span>
+                        {% if object.repositorios.exists %}
+                            {% for repo in object.repositorios.all %}
+                                <a href="{{ repo.link }}" target="_blank" rel="noopener noreferrer" class="badge text-bg-info me-1">{{ repo.nome|default:repo.link }}</a>
                             {% endfor %}
                         {% else %}
-                            <span class="text-secondary">Nenhuma</span>
+                            <span class="text-secondary">Nenhum</span>
                         {% endif %}
                     </dd>
 

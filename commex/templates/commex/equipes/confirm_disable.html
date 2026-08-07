@@ -1,0 +1,12 @@
+{% extends "commex/base.html" %}
+{% block title %}Inativar equipe{% endblock %}
+{% block content %}
+<div class="card card-body shadow-sm">
+  <h1 class="h5">Inativar equipe</h1>
+  <p>Deseja inativar a equipe <strong>{{ object.nome }}</strong>?</p>
+  <form method="post">{% csrf_token %}
+    <button class="btn btn-danger" type="submit">Inativar</button>
+    <a class="btn btn-outline-secondary" href="{% url 'equipe-detail' object.pk %}">Cancelar</a>
+  </form>
+</div>
+{% endblock %}

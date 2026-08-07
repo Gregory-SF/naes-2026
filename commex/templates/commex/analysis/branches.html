@@ -1,0 +1,29 @@
+{% extends "commex/base.html" %}
+{% block title %}Branches{% endblock %}
+{% block content %}
+<h1 class="h4 mb-3">Gerenciar branches</h1>
+<div class="row g-3">
+  <div class="col-md-6">
+    <div class="card card-body shadow-sm">
+      <h2 class="h6">Buscar no GitHub</h2>
+      <form method="post">{% csrf_token %}
+        <input type="hidden" name="action" value="fetch">
+        <select class="form-select mb-2" name="repositorio">
+          <option value="">Selecione o repositório</option>
+          {% for r in repositorios %}<option value="{{ r.pk }}">{{ r.projeto.nome }} / {{ r.nome|default:r.link }}</option>{% endfor %}
+        </select>
+        <button class="btn btn-outline-primary" type="submit">Buscar branches</button>
+      </form>
+    </div>
+  </div>
+  <div class="col-md-6">
+    <div class="card card-body shadow-sm">
+      <h2 class="h6">Cadastrar manualmente</h2>
+      <form method="post">{% csrf_token %}{{ form.as_p }}<button class="btn btn-primary" type="submit">Salvar branch</button></form>
+    </div>
+  </div>
+</div>
+<div class="card shadow-sm border-0 mt-3"><div class="table-responsive"><table class="table mb-0"><thead><tr><th>Projeto</th><th>Repositório</th><th>Branch</th></tr></thead><tbody>
+{% for b in branches %}<tr><td>{{ b.repositorio.projeto.nome }}</td><td>{{ b.repositorio.nome|default:b.repositorio.link }}</td><td>{{ b.nome }}</td></tr>{% empty %}<tr><td colspan="3" class="text-center">Nenhuma branch.</td></tr>{% endfor %}
+</tbody></table></div></div>
+{% endblock %}

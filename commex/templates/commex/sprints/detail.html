@@ -1,0 +1,10 @@
+{% extends "commex/base.html" %}
+{% block title %}Sprint{% endblock %}
+{% block content %}
+<h1 class="h4 mb-3">{{ object.nome }}</h1>
+<p>Período: {{ object.data_inicio }} a {{ object.data_fim }}</p>
+<p>Status: {% if object.ativo %}Ativa{% else %}Inativa{% endif %}</p>
+<h2 class="h6">Projetos vinculados</h2>
+<ul>{% for p in object.projetos.all %}<li>{{ p.nome }}</li>{% empty %}<li>Nenhum projeto.</li>{% endfor %}</ul>
+<a class="btn btn-outline-primary" href="{% url 'sprint-update' object.pk %}">Editar</a>
+{% endblock %}

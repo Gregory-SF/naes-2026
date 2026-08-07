@@ -2,6 +2,7 @@ from django.core.exceptions import ValidationError
 from django.db import models
 from django.db.models import Q
 from django.contrib.auth.models import User
+from django.utils import timezone
 
 # Create your models here.
  
@@ -33,6 +34,7 @@ class Sprint(models.Model):
     nome = models.CharField(max_length=120)
     data_inicio = models.DateField()
     data_fim = models.DateField()
+    ativo = models.BooleanField(default=True)
 
     def __str__(self):
         return f'{self.nome} ({self.data_inicio} - {self.data_fim})'
@@ -72,6 +74,7 @@ class Aluno(models.Model):
     nome = models.CharField(max_length=120)
     ra = models.CharField(max_length=20, unique=True, verbose_name='RA')
     email = models.EmailField(unique=True)
+    github_nickname = models.CharField(max_length=80, unique=True, null=True, blank=True)
     usuario = models.OneToOneField(
         User,
         on_delete=models.PROTECT,
@@ -94,8 +97,11 @@ class Projeto(models.Model):
     status = models.CharField(max_length=8, choices=StatusProjeto.choices, default=StatusProjeto.ATIVO)
     ano = models.PositiveSmallIntegerField()
     dias_aula = models.JSONField(default=list, blank=True)
+    link_organizacao_github = models.URLField(verbose_name='link da organização/conta GitHub', blank=False, default='')
     repositorios = models.ManyToManyField('Repositorio', related_name='projetos', blank=True)
     sprints = models.ManyToManyField(Sprint, related_name='projetos', blank=True)
+    cadastrado_em = models.DateTimeField(auto_now_add=True)
+    atualizado_em = models.DateTimeField(auto_now=True)
 
     def __str__(self):
         return f'{self.nome} ({self.ano})'
@@ -119,6 +125,7 @@ class Equipe(models.Model):
     nome = models.CharField(max_length=120)
     projeto = models.ForeignKey(Projeto, on_delete=models.PROTECT, related_name='equipes')
     alunos = models.ManyToManyField(Aluno, through='MembroEquipe', related_name='equipes')
+    ativo = models.BooleanField(default=True)
 
     def __str__(self):
         return f'{self.nome} - {self.projeto.nome}'
@@ -162,19 +169,132 @@ class MembroEquipe(models.Model):
 
 
 class Repositorio(models.Model):
+    projeto = models.ForeignKey(Projeto, on_delete=models.CASCADE, related_name='repositorios_diretos', null=True, blank=True)
     nome = models.CharField(max_length=120, blank=True)
-    link = models.URLField(unique=True)
+    link = models.URLField(max_length=500)
     alias = models.CharField(max_length=60, blank=True, help_text='Nome curto para exibição, ex: backend, frontend, etc.')
     linguagem_principal = models.CharField(max_length=60, blank=True)
     tipo = models.CharField(max_length=10, choices=TipoRepositorio.choices, blank=True)
+    cadastrado_em = models.DateTimeField(auto_now_add=True)
+    atualizado_em = models.DateTimeField(auto_now=True)
 
     def __str__(self):
-        return self.alias or  self.nome
+        return self.alias or self.nome or self.link
 
     class Meta:
         ordering = ['nome']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['projeto', 'link'],
+                name='repositorio_projeto_link_unico',
+            )
+        ]
 
-        
+
+class DiaAulaConfiguracao(models.Model):
+    class CodigoDia(models.TextChoices):
+        SEGUNDA = DiaSemana.SEGUNDA, 'Segunda-feira'
+        TERCA = DiaSemana.TERCA, 'Terca-feira'
+        QUARTA = DiaSemana.QUARTA, 'Quarta-feira'
+        QUINTA = DiaSemana.QUINTA, 'Quinta-feira'
+        SEXTA = DiaSemana.SEXTA, 'Sexta-feira'
+
+    codigo = models.CharField(max_length=10, choices=CodigoDia.choices, unique=True)
+    label = models.CharField(max_length=30)
+
+    def __str__(self):
+        return self.label
+
+    class Meta:
+        ordering = ['codigo']
+
+
+class ConfiguracaoGlobal(models.Model):
+    github_token = models.TextField(blank=True, default='')
+    dias_aula = models.ManyToManyField(DiaAulaConfiguracao, blank=True, related_name='configuracoes')
+    atualizado_em = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return 'Configuracao global do sistema'
+
+    @property
+    def token_configurado(self):
+        return bool(self.github_token)
+
+    class Meta:
+        verbose_name = 'Configuracao global'
+        verbose_name_plural = 'Configuracoes globais'
+
+
+class Branch(models.Model):
+    repositorio = models.ForeignKey(Repositorio, on_delete=models.CASCADE, related_name='branches')
+    nome = models.CharField(max_length=120)
+    ativo = models.BooleanField(default=True)
+    atualizado_em = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f'{self.nome} ({self.repositorio})'
+
+    class Meta:
+        ordering = ['nome']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['repositorio', 'nome'],
+                name='branch_repositorio_nome_unico',
+            )
+        ]
+
+
+class StatusExecucaoAnalise(models.TextChoices):
+    PENDENTE = 'PENDENTE', 'Pendente'
+    PROCESSANDO = 'PROCESSANDO', 'Processando'
+    CONCLUIDA = 'CONCLUIDA', 'Concluida'
+    FALHA = 'FALHA', 'Falha'
+
+
+class ExecucaoAnalise(models.Model):
+    projeto = models.ForeignKey(Projeto, on_delete=models.PROTECT, related_name='execucoes_analise')
+    repositorio = models.ForeignKey(Repositorio, on_delete=models.PROTECT, related_name='execucoes_analise')
+    branch = models.ForeignKey(Branch, on_delete=models.PROTECT, related_name='execucoes_analise')
+    sprint = models.ForeignKey(Sprint, on_delete=models.SET_NULL, null=True, blank=True, related_name='execucoes_analise')
+    data_inicio = models.DateField()
+    data_fim = models.DateField()
+    status = models.CharField(max_length=20, choices=StatusExecucaoAnalise.choices, default=StatusExecucaoAnalise.PENDENTE)
+    progresso_percentual = models.PositiveSmallIntegerField(default=0)
+    erro = models.TextField(blank=True)
+    iniciado_em = models.DateTimeField(default=timezone.now)
+    finalizado_em = models.DateTimeField(null=True, blank=True)
+
+    def __str__(self):
+        return f'Execucao {self.id} - {self.projeto.nome} - {self.branch.nome}'
+
+    class Meta:
+        ordering = ['-iniciado_em']
+
+
+class CommitAnalisado(models.Model):
+    execucao = models.ForeignKey(ExecucaoAnalise, on_delete=models.CASCADE, related_name='commits')
+    sha = models.CharField(max_length=64)
+    mensagem = models.TextField(blank=True)
+    data_commit = models.DateTimeField()
+    autor_nome = models.CharField(max_length=120, blank=True)
+    autor_email = models.EmailField(blank=True)
+    autor_login = models.CharField(max_length=120, blank=True)
+    url = models.URLField(max_length=500, blank=True)
+    aluno = models.ForeignKey(Aluno, on_delete=models.SET_NULL, null=True, blank=True, related_name='commits_analisados')
+    adicionado_em = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f'{self.sha[:7]} - {self.execucao}'
+
+    class Meta:
+        ordering = ['-data_commit']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['execucao', 'sha'],
+                name='commit_execucao_sha_unico',
+            )
+        ]
 
 
 class Analise(models.Model):

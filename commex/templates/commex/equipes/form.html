@@ -1,0 +1,18 @@
+{% extends "commex/base.html" %}
+{% block title %}{{ titulo }}{% endblock %}
+{% block content %}
+<h1 class="h4 mb-3">{{ titulo }}</h1>
+<form method="post" class="card card-body shadow-sm">
+  {% csrf_token %}
+  {{ form.as_p }}
+  <h2 class="h6 mt-2">Membros</h2>
+  {{ formset.management_form }}
+  {% for f in formset %}
+    <div class="border rounded p-2 mb-2">{{ f.as_p }}</div>
+  {% endfor %}
+  <div class="d-flex gap-2">
+    <button class="btn btn-primary" type="submit">Salvar</button>
+    <a class="btn btn-outline-secondary" href="{% url 'equipe-list' %}">Voltar</a>
+  </div>
+</form>
+{% endblock %}

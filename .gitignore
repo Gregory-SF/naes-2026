@@ -1,5 +1,6 @@
+# Arquivos
+*.pyc
 **/__pycache__/
-/**/__pycache__/**
 commex/migrations/
 commex/migrations/**
 /commex/__pycache__/**

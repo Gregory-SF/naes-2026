@@ -20,9 +20,8 @@
                         <th>Nome</th>
                         <th>Status</th>
                         <th>Ano</th>
-                        <th>Dia</th>
-                        <th>Repositorios</th>
-                        <th>Sprints</th>
+                        <th>Organização</th>
+                        <th>Repositórios</th>
                         <th class="text-end">Ações</th>
                     </tr>
                 </thead>
@@ -36,9 +35,14 @@
                             </span>
                         </td>
                         <td>{{ projeto.ano }}</td>
-                        <td>{{ projeto.get_dia_semana_display }}</td>
+                        <td>
+                            {% if projeto.link_organizacao_github %}
+                                <a href="{{ projeto.link_organizacao_github }}" target="_blank" rel="noopener noreferrer">{{ projeto.link_organizacao_github }}</a>
+                            {% else %}
+                                <span class="text-secondary">-</span>
+                            {% endif %}
+                        </td>
                         <td>{{ projeto.repositorios.count }}</td>
-                        <td>{{ projeto.sprints.count }}</td>
                         <td class="text-end">
                             <div class="btn-group btn-group-sm" role="group">
                                 <a href="{% url 'projeto-detail' projeto.pk %}" class="btn btn-outline-info">Detalhar</a>

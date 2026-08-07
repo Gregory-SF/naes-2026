@@ -1,0 +1,10 @@
+{% extends "commex/base.html" %}
+{% block title %}Configurações globais{% endblock %}
+{% block content %}
+<h1 class="h4 mb-3">Configurações globais</h1>
+<div class="card card-body shadow-sm">
+  <p>Token configurado: {% if token_configurado %}<strong>Sim</strong> ({{ token_masked }}){% else %}<strong>Não</strong>{% endif %}</p>
+  <form method="post">{% csrf_token %}{{ form.as_p }}<button class="btn btn-primary" type="submit">Salvar</button></form>
+  <form method="post" action="{% url 'configuracoes-remover-token' %}" class="mt-3">{% csrf_token %}<button class="btn btn-outline-danger" type="submit">Remover token</button></form>
+</div>
+{% endblock %}
