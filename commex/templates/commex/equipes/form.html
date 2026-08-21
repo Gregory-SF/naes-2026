@@ -4,15 +4,166 @@
 <h1 class="h4 mb-3">{{ titulo }}</h1>
 <form method="post" class="card card-body shadow-sm">
   {% csrf_token %}
-  {{ form.as_p }}
-  <h2 class="h6 mt-2">Membros</h2>
-  {{ formset.management_form }}
-  {% for f in formset %}
-    <div class="border rounded p-2 mb-2">{{ f.as_p }}</div>
+  {% if form.non_field_errors %}
+    <div class="alert alert-danger" role="alert">
+      {% for error in form.non_field_errors %}<div>{{ error }}</div>{% endfor %}
+    </div>
+  {% endif %}
+
+  <div class="mb-3">
+    <label class="form-label" for="id_nome">Nome da equipe</label>
+    {{ form.nome }}
+    {% if form.nome.errors %}
+      <div class="text-danger small mt-1">{% for error in form.nome.errors %}<div>{{ error }}</div>{% endfor %}</div>
+    {% endif %}
+  </div>
+
+  <div class="row g-3">
+    <div class="col-md-8">
+      <label class="form-label" for="id_projeto">Projeto</label>
+      {{ form.projeto }}
+      {% if form.projeto.errors %}
+        <div class="text-danger small mt-1">{% for error in form.projeto.errors %}<div>{{ error }}</div>{% endfor %}</div>
+      {% endif %}
+    </div>
+    <div class="col-md-4">
+      <label class="form-label" for="id_ativo">Status</label>
+      {{ form.ativo }}
+      {% if form.ativo.errors %}
+        <div class="text-danger small mt-1">{% for error in form.ativo.errors %}<div>{{ error }}</div>{% endfor %}</div>
+      {% endif %}
+    </div>
+  </div>
+
+  <h2 class="h6 mt-4">Composicao da equipe</h2>
+  {% if member_errors.geral %}
+    <div class="alert alert-danger" role="alert">
+      {% for error in member_errors.geral %}<div>{{ error }}</div>{% endfor %}
+    </div>
+  {% endif %}
+
+  {% if member_errors.dev_nomes %}
+    <div class="alert alert-danger py-2" role="alert">
+      {% for _index, error in member_errors.dev_nomes.items %}<div>{{ error }}</div>{% endfor %}
+    </div>
+  {% endif %}
+
+  <div class="border rounded p-3 mb-3">
+    <label class="form-label" for="id_membros_sm_nome">Nome do Scrum Master</label>
+    <input
+      id="id_membros_sm_nome"
+      name="membros_sm_nome"
+      type="text"
+      class="form-control {% if member_errors.sm_nome %}is-invalid{% endif %}"
+      value="{{ member_data.sm_nome }}"
+      placeholder="Ex: Ana Souza"
+    >
+    {% if member_errors.sm_nome %}<div class="invalid-feedback">{{ member_errors.sm_nome }}</div>{% endif %}
+  </div>
+
+  <div class="border rounded p-3 mb-3">
+    <label class="form-label" for="id_membros_po_nome">Nome do Product Owner</label>
+    <input
+      id="id_membros_po_nome"
+      name="membros_po_nome"
+      type="text"
+      class="form-control {% if member_errors.po_nome %}is-invalid{% endif %}"
+      value="{{ member_data.po_nome }}"
+      placeholder="Ex: Bruno Lima"
+    >
+    {% if member_errors.po_nome %}<div class="invalid-feedback">{{ member_errors.po_nome }}</div>{% endif %}
+  </div>
+
+  <div class="border rounded p-3 mb-3">
+    <div class="d-flex justify-content-between align-items-center mb-2">
+      <label class="form-label mb-0">Nome do Desenvolvedor</label>
+      <button id="btn-add-dev" type="button" class="btn btn-sm btn-outline-primary">+</button>
+    </div>
+    <input type="hidden" id="id_membros_total_devs" name="membros_total_devs" value="{{ member_data.total_devs }}">
+    <div id="dev-fields-wrapper" class="d-flex flex-column gap-2">
+      {% for dev_nome in member_data.dev_nomes %}
+        <div class="dev-row d-flex gap-2 align-items-start">
+          <input
+            type="text"
+            class="form-control"
+            name="membros_dev_{{ forloop.counter0 }}_nome"
+            value="{{ dev_nome }}"
+            placeholder="Ex: Carla Alves"
+          >
+          <button type="button" class="btn btn-outline-danger btn-remove-dev">Remover</button>
+        </div>
+      {% endfor %}
+    </div>
+    <div class="form-text">Use nome completo ou apelido GitHub do aluno ja cadastrado.</div>
+  </div>
+
+  {% for hidden in form.hidden_fields %}
+    {{ hidden }}
   {% endfor %}
+
   <div class="d-flex gap-2">
     <button class="btn btn-primary" type="submit">Salvar</button>
     <a class="btn btn-outline-secondary" href="{% url 'equipe-list' %}">Voltar</a>
   </div>
 </form>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  (function () {
+    const wrapper = document.getElementById('dev-fields-wrapper');
+    const totalInput = document.getElementById('id_membros_total_devs');
+    const addButton = document.getElementById('btn-add-dev');
+
+    function createDevRow(value) {
+      const row = document.createElement('div');
+      row.className = 'dev-row d-flex gap-2 align-items-start';
+      row.innerHTML = `
+        <input type="text" class="form-control" placeholder="Ex: Carla Alves">
+        <button type="button" class="btn btn-outline-danger btn-remove-dev">Remover</button>
+      `;
+      row.querySelector('input').value = value || '';
+      return row;
+    }
+
+    function reindexRows() {
+      const rows = wrapper.querySelectorAll('.dev-row');
+      rows.forEach((row, index) => {
+        const input = row.querySelector('input');
+        input.name = `membros_dev_${index}_nome`;
+      });
+      totalInput.value = rows.length;
+      updateRemoveButtons();
+    }
+
+    function updateRemoveButtons() {
+      const buttons = wrapper.querySelectorAll('.btn-remove-dev');
+      const disableRemove = buttons.length <= 1;
+      buttons.forEach((btn) => {
+        btn.disabled = disableRemove;
+        btn.classList.toggle('d-none', disableRemove);
+      });
+    }
+
+    addButton.addEventListener('click', () => {
+      wrapper.appendChild(createDevRow(''));
+      reindexRows();
+    });
+
+    wrapper.addEventListener('click', (event) => {
+      const button = event.target.closest('.btn-remove-dev');
+      if (!button) {
+        return;
+      }
+      const rows = wrapper.querySelectorAll('.dev-row');
+      if (rows.length <= 1) {
+        return;
+      }
+      button.closest('.dev-row').remove();
+      reindexRows();
+    });
+
+    reindexRows();
+  })();
+</script>
 {% endblock %}

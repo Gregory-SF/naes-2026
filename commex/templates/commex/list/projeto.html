@@ -14,7 +14,7 @@
 <div class="card border-0 shadow-sm">
     <div class="card-body p-0">
         <div class="table-responsive">
-            <table class="table table-hover align-middle mb-0">
+            <table class="table table-hover align-middle mb-0" id="tabela-projetos">
                 <thead class="table-light">
                     <tr>
                         <th>Nome</th>
@@ -83,4 +83,23 @@
     </ul>
 </nav>
 {% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    $(function () {
+        {% if object_list %}
+        $('#tabela-projetos').DataTable({
+            paging: false,
+            info: false,
+            language: {
+                search: 'Buscar:',
+                zeroRecords: 'Nenhum projeto encontrado.',
+                emptyTable: 'Nenhum projeto cadastrado até o momento.',
+            },
+            columnDefs: [{ targets: -1, orderable: false }],
+        });
+        {% endif %}
+    });
+</script>
 {% endblock %}

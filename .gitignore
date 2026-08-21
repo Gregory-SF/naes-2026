@@ -4,3 +4,22 @@
 commex/migrations/
 commex/migrations/**
 /commex/__pycache__/**
+
+# Python
+.venv/
+venv/
+dist/
+build/
+*.egg-info/
+
+# Logs and env
+*.log
+.env
+.env.*
+
+# Universal
+.DS_Store
+Thumbs.db
+*.tmp
+*.swp
+.idea/

@@ -172,6 +172,7 @@ class Repositorio(models.Model):
     projeto = models.ForeignKey(Projeto, on_delete=models.CASCADE, related_name='repositorios_diretos', null=True, blank=True)
     nome = models.CharField(max_length=120, blank=True)
     link = models.URLField(max_length=500)
+    branch_principal = models.CharField(max_length=120, blank=True, default='')
     alias = models.CharField(max_length=60, blank=True, help_text='Nome curto para exibição, ex: backend, frontend, etc.')
     linguagem_principal = models.CharField(max_length=60, blank=True)
     tipo = models.CharField(max_length=10, choices=TipoRepositorio.choices, blank=True)

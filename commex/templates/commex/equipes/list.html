@@ -5,7 +5,7 @@
   <h1 class="h4 mb-0">Equipes</h1>
   <a class="btn btn-primary" href="{% url 'equipe-create' %}">Nova equipe</a>
 </div>
-<div class="card shadow-sm border-0"><div class="table-responsive"><table class="table mb-0">
+<div class="card shadow-sm border-0"><div class="table-responsive"><table class="table mb-0" id="tabela-equipes">
 <thead><tr><th>Equipe</th><th>Projeto</th><th>Status</th><th>Ações</th></tr></thead>
 <tbody>
 {% for equipe in object_list %}
@@ -20,4 +20,37 @@
 </tr>
 {% empty %}<tr><td colspan="4" class="text-center">Nenhuma equipe.</td></tr>{% endfor %}
 </tbody></table></div></div>
+
+{% if is_paginated %}
+<nav class="mt-4" aria-label="Paginação">
+    <ul class="pagination justify-content-center">
+        {% if page_obj.has_previous %}
+            <li class="page-item"><a class="page-link" href="?page={{ page_obj.previous_page_number }}">Anterior</a></li>
+        {% else %}
+            <li class="page-item disabled"><span class="page-link">Anterior</span></li>
+        {% endif %}
+        <li class="page-item active"><span class="page-link">{{ page_obj.number }}</span></li>
+        {% if page_obj.has_next %}
+            <li class="page-item"><a class="page-link" href="?page={{ page_obj.next_page_number }}">Próxima</a></li>
+        {% else %}
+            <li class="page-item disabled"><span class="page-link">Próxima</span></li>
+        {% endif %}
+    </ul>
+</nav>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    $(function () {
+        {% if object_list %}
+        $('#tabela-equipes').DataTable({
+            paging: false,
+            info: false,
+            language: { search: 'Buscar:', zeroRecords: 'Nenhuma equipe encontrada.' },
+            columnDefs: [{ targets: -1, orderable: false }],
+        });
+        {% endif %}
+    });
+</script>
 {% endblock %}

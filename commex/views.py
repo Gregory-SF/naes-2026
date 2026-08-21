@@ -1,6 +1,7 @@
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin
+from django.db import transaction
 from django.db.models import Prefetch
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse, reverse_lazy
@@ -12,18 +13,21 @@ from .forms import (
     BranchCreateForm,
     ConfiguracaoGlobalForm,
     EquipeForm,
-    MembroEquipeFormSet,
     ProjetoForm,
+    build_projeto_repositorio_formset,
     SprintFiltroForm,
     SprintForm,
+    sync_projeto_repositorios,
 )
 from .models import (
+    Aluno,
     Branch,
     ConfiguracaoGlobal,
     DiaAulaConfiguracao,
     Equipe,
     ExecucaoAnalise,
     MembroEquipe,
+    PapelScrum,
     Projeto,
     Repositorio,
     Sprint,
@@ -40,20 +44,59 @@ from .services.global_settings import (
 )
 
 
-class ProjetoCreate(LoginRequiredMixin, CreateView):
+class ProjetoFormMixin:
+    """Monta e valida o formset de repositórios junto com o ModelForm de Projeto."""
+
     model = Projeto
     form_class = ProjetoForm
     template_name = 'commex/form.html'
     success_url = reverse_lazy('projeto-list')
-    extra_context = {'titulo': 'Cadastro de Projeto', 'botao': 'Criar Projeto'}
+
+    def get_repositorio_formset(self, data=None):
+        return build_projeto_repositorio_formset(
+            data=data,
+            projeto=getattr(self, 'object', None),
+            project_owner=(data or {}).get('link_organizacao_github'),
+        )
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context.setdefault('repositorio_formset', self.get_repositorio_formset())
+        context['titulo'] = self.titulo
+        context['botao'] = self.botao
+        return context
+
+    def post(self, request, *args, **kwargs):
+        self.object = self.get_object() if 'pk' in kwargs else None
+        form = self.get_form()
+        repositorio_formset = self.get_repositorio_formset(data=request.POST)
+        if form.is_valid() and repositorio_formset.is_valid():
+            return self.form_valid(form, repositorio_formset)
+        return self.form_invalid(form, repositorio_formset)
+
+    def form_valid(self, form, repositorio_formset):
+        with transaction.atomic():
+            projeto = form.save()
+            sync_projeto_repositorios(projeto, repositorio_formset)
+        self.object = projeto
+        messages.success(self.request, self.success_message)
+        return redirect(self.success_url)
+
+    def form_invalid(self, form, repositorio_formset):
+        context = self.get_context_data(form=form, repositorio_formset=repositorio_formset)
+        return render(self.request, self.template_name, context)
 
 
-class ProjetoUpdate(LoginRequiredMixin, UpdateView):
-    model = Projeto
-    form_class = ProjetoForm
-    template_name = 'commex/form.html'
-    success_url = reverse_lazy('projeto-list')
-    extra_context = {'titulo': 'Editar dados do Projeto', 'botao': 'Atualizar Projeto'}
+class ProjetoCreate(LoginRequiredMixin, ProjetoFormMixin, CreateView):
+    titulo = 'Cadastro de Projeto'
+    botao = 'Criar Projeto'
+    success_message = 'Projeto criado com sucesso.'
+
+
+class ProjetoUpdate(LoginRequiredMixin, ProjetoFormMixin, UpdateView):
+    titulo = 'Editar dados do Projeto'
+    botao = 'Atualizar Projeto'
+    success_message = 'Projeto atualizado com sucesso.'
 
 
 class ProjetoDelete(LoginRequiredMixin, DeleteView):
@@ -69,10 +112,16 @@ class ProjetoList(LoginRequiredMixin, ListView):
     context_object_name = 'projetos'
     paginate_by = 20
 
+    def get_queryset(self):
+        return Projeto.objects.prefetch_related('repositorios').order_by('-ano', 'nome')
+
 
 class ProjetoDetail(LoginRequiredMixin, DetailView):
     model = Projeto
     template_name = 'commex/detail/projeto.html'
+
+    def get_queryset(self):
+        return Projeto.objects.prefetch_related('repositorios')
 
 
 class EquipeList(LoginRequiredMixin, ListView):
@@ -98,28 +147,192 @@ class EquipeDetail(LoginRequiredMixin, DetailView):
             .prefetch_related('membros__aluno')
         )
 
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        membros = self.object.membros.select_related('aluno').all()
+        context['membros_sm'] = [m for m in membros if m.papel == PapelScrum.SCRUM_MASTER]
+        context['membros_po'] = [m for m in membros if m.papel == PapelScrum.PRODUCT_OWNER]
+        context['membros_dev'] = [m for m in membros if m.papel == PapelScrum.DESENVOLVEDOR]
+        return context
+
+
+def _safe_int(value, default=0):
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def _extract_member_data(post_data):
+    sm_nome = (post_data.get('membros_sm_nome') or '').strip()
+    po_nome = (post_data.get('membros_po_nome') or '').strip()
+    total_devs = max(1, _safe_int(post_data.get('membros_total_devs'), default=1))
+
+    dev_nomes = []
+    for index in range(total_devs):
+        dev_nomes.append((post_data.get(f'membros_dev_{index}_nome') or '').strip())
+
+    return {
+        'sm_nome': sm_nome,
+        'po_nome': po_nome,
+        'dev_nomes': dev_nomes,
+        'total_devs': total_devs,
+    }
+
+
+def _initial_member_data(equipe=None):
+    if equipe is None:
+        return {
+            'sm_nome': '',
+            'po_nome': '',
+            'dev_nomes': [''],
+            'total_devs': 1,
+        }
+
+    membros = equipe.membros.select_related('aluno').all()
+    sm_nome = ''
+    po_nome = ''
+    dev_nomes = []
+
+    for membro in membros:
+        if membro.papel == PapelScrum.SCRUM_MASTER:
+            sm_nome = membro.aluno.nome
+        elif membro.papel == PapelScrum.PRODUCT_OWNER:
+            po_nome = membro.aluno.nome
+        elif membro.papel == PapelScrum.DESENVOLVEDOR:
+            dev_nomes.append(membro.aluno.nome)
+
+    if not dev_nomes:
+        dev_nomes = ['']
+
+    return {
+        'sm_nome': sm_nome,
+        'po_nome': po_nome,
+        'dev_nomes': dev_nomes,
+        'total_devs': len(dev_nomes),
+    }
+
+
+def _resolve_aluno_por_texto(texto):
+    candidatos_nome = list(Aluno.objects.filter(nome__iexact=texto)[:2])
+    if len(candidatos_nome) == 1:
+        return candidatos_nome[0], None
+
+    if len(candidatos_nome) > 1:
+        aluno_por_apelido = Aluno.objects.filter(github_nickname__iexact=texto).first()
+        if aluno_por_apelido:
+            return aluno_por_apelido, None
+        return None, 'Mais de um aluno encontrado com este nome. Informe um apelido GitHub unico.'
+
+    aluno_por_apelido = Aluno.objects.filter(github_nickname__iexact=texto).first()
+    if aluno_por_apelido:
+        return aluno_por_apelido, None
+
+    return None, 'Aluno nao encontrado por nome ou apelido GitHub.'
+
+
+def _validar_e_resolver_membros(member_data):
+    errors = {
+        'sm_nome': '',
+        'po_nome': '',
+        'dev_nomes': {},
+        'geral': [],
+    }
+
+    resolved_members = []
+
+    if not member_data['sm_nome']:
+        errors['sm_nome'] = 'Informe o nome do Scrum Master.'
+    if not member_data['po_nome']:
+        errors['po_nome'] = 'Informe o nome do Product Owner.'
+
+    devs_preenchidos = [(i, nome) for i, nome in enumerate(member_data['dev_nomes']) if nome]
+    if not devs_preenchidos:
+        errors['geral'].append('A equipe deve ter ao menos um Desenvolvedor.')
+
+    seen_alunos = set()
+
+    if member_data['sm_nome']:
+        aluno, erro = _resolve_aluno_por_texto(member_data['sm_nome'])
+        if erro:
+            errors['sm_nome'] = erro
+        else:
+            resolved_members.append((PapelScrum.SCRUM_MASTER, aluno))
+            seen_alunos.add(aluno.pk)
+
+    if member_data['po_nome']:
+        aluno, erro = _resolve_aluno_por_texto(member_data['po_nome'])
+        if erro:
+            errors['po_nome'] = erro
+        else:
+            if aluno.pk in seen_alunos:
+                errors['po_nome'] = 'O mesmo aluno nao pode ocupar mais de um papel na equipe.'
+            else:
+                resolved_members.append((PapelScrum.PRODUCT_OWNER, aluno))
+                seen_alunos.add(aluno.pk)
+
+    for index, dev_nome in devs_preenchidos:
+        aluno, erro = _resolve_aluno_por_texto(dev_nome)
+        if erro:
+            errors['dev_nomes'][index] = erro
+            continue
+        if aluno.pk in seen_alunos:
+            errors['dev_nomes'][index] = 'O mesmo aluno nao pode ocupar mais de um papel na equipe.'
+            continue
+        resolved_members.append((PapelScrum.DESENVOLVEDOR, aluno))
+        seen_alunos.add(aluno.pk)
+
+    has_errors = bool(
+        errors['sm_nome']
+        or errors['po_nome']
+        or errors['dev_nomes']
+        or errors['geral']
+    )
+    if has_errors:
+        return None, errors
+    return resolved_members, errors
+
+
+def _persistir_membros_equipe(equipe, resolved_members):
+    MembroEquipe.objects.filter(equipe=equipe).delete()
+    MembroEquipe.objects.bulk_create(
+        [
+            MembroEquipe(equipe=equipe, aluno=aluno, papel=papel)
+            for papel, aluno in resolved_members
+        ]
+    )
+
 
 class EquipeCreate(LoginRequiredMixin, View):
     template_name = 'commex/equipes/form.html'
 
     def get(self, request):
         form = EquipeForm()
-        formset = MembroEquipeFormSet(prefix='membros')
-        return render(request, self.template_name, {'form': form, 'formset': formset, 'titulo': 'Cadastro de Equipe'})
+        member_data = _initial_member_data()
+        member_errors = {'sm_nome': '', 'po_nome': '', 'dev_nomes': {}, 'geral': []}
+        return render(
+            request,
+            self.template_name,
+            {'form': form, 'member_data': member_data, 'member_errors': member_errors, 'titulo': 'Cadastro de Equipe'},
+        )
 
     def post(self, request):
         form = EquipeForm(request.POST)
-        formset = MembroEquipeFormSet(request.POST, prefix='membros')
-        if form.is_valid():
-            equipe = form.save(commit=False)
-            formset = MembroEquipeFormSet(request.POST, instance=equipe, prefix='membros')
-            if formset.is_valid():
-                equipe.save()
-                formset.instance = equipe
-                formset.save()
-                messages.success(request, 'Equipe criada com sucesso.')
-                return redirect('equipe-detail', pk=equipe.pk)
-        return render(request, self.template_name, {'form': form, 'formset': formset, 'titulo': 'Cadastro de Equipe'})
+        member_data = _extract_member_data(request.POST)
+        resolved_members, member_errors = _validar_e_resolver_membros(member_data)
+
+        if form.is_valid() and resolved_members is not None:
+            with transaction.atomic():
+                equipe = form.save()
+                _persistir_membros_equipe(equipe, resolved_members)
+            messages.success(request, 'Equipe criada com sucesso.')
+            return redirect('equipe-detail', pk=equipe.pk)
+
+        return render(
+            request,
+            self.template_name,
+            {'form': form, 'member_data': member_data, 'member_errors': member_errors, 'titulo': 'Cadastro de Equipe'},
+        )
 
 
 class EquipeUpdate(LoginRequiredMixin, View):
@@ -131,19 +344,31 @@ class EquipeUpdate(LoginRequiredMixin, View):
     def get(self, request, pk):
         equipe = self.get_object(pk)
         form = EquipeForm(instance=equipe)
-        formset = MembroEquipeFormSet(instance=equipe, prefix='membros')
-        return render(request, self.template_name, {'form': form, 'formset': formset, 'titulo': 'Editar Equipe', 'object': equipe})
+        member_data = _initial_member_data(equipe)
+        member_errors = {'sm_nome': '', 'po_nome': '', 'dev_nomes': {}, 'geral': []}
+        return render(
+            request,
+            self.template_name,
+            {'form': form, 'member_data': member_data, 'member_errors': member_errors, 'titulo': 'Editar Equipe', 'object': equipe},
+        )
 
     def post(self, request, pk):
         equipe = self.get_object(pk)
         form = EquipeForm(request.POST, instance=equipe)
-        formset = MembroEquipeFormSet(request.POST, instance=equipe, prefix='membros')
-        if form.is_valid() and formset.is_valid():
-            form.save()
-            formset.save()
+        member_data = _extract_member_data(request.POST)
+        resolved_members, member_errors = _validar_e_resolver_membros(member_data)
+
+        if form.is_valid() and resolved_members is not None:
+            with transaction.atomic():
+                form.save()
+                _persistir_membros_equipe(equipe, resolved_members)
             messages.success(request, 'Equipe atualizada com sucesso.')
             return redirect('equipe-detail', pk=equipe.pk)
-        return render(request, self.template_name, {'form': form, 'formset': formset, 'titulo': 'Editar Equipe', 'object': equipe})
+        return render(
+            request,
+            self.template_name,
+            {'form': form, 'member_data': member_data, 'member_errors': member_errors, 'titulo': 'Editar Equipe', 'object': equipe},
+        )
 
 
 class EquipeDelete(LoginRequiredMixin, View):
@@ -169,8 +394,10 @@ def membro_delete(request, pk):
     membro = get_object_or_404(MembroEquipe, pk=pk)
     equipe = membro.equipe
     if request.method == 'POST':
-        if equipe.membros.count() <= 1:
-            messages.error(request, 'A equipe deve manter ao menos um membro.')
+        if membro.papel != PapelScrum.DESENVOLVEDOR:
+            messages.error(request, 'Scrum Master e Product Owner so podem ser alterados via edicao da equipe.')
+        elif equipe.membros.filter(papel=PapelScrum.DESENVOLVEDOR).count() <= 1:
+            messages.error(request, 'A equipe deve manter ao menos um Desenvolvedor.')
         else:
             membro.delete()
             messages.success(request, 'Membro removido com sucesso.')
@@ -349,3 +576,6 @@ class IndexView(LoginRequiredMixin, ListView):
     template_name = 'commex/index.html'
     context_object_name = 'projetos'
     paginate_by = 5
+
+    def get_queryset(self):
+        return Projeto.objects.prefetch_related('repositorios').order_by('-ano', 'nome')

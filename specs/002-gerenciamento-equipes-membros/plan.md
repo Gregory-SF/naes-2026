@@ -109,6 +109,16 @@ com alunos criados implicitamente, apelidos GitHub únicos e composição por
 papéis. A feature deve reaproveitar a aplicação `commex`, manter a experiência
 server-rendered e preservar compatibilidade com as demais áreas do sistema.
 
+**Revisão 2026-08-10 — Novo padrão de UI para membros**: A abordagem de
+formulário de membros foi revisada para eliminar o formset genérico com dropdown
+de papel (`MembroEquipeFormSet`). O novo design usa campos de texto livre
+dedicados por papel, visíveis imediatamente na abertura do formulário, seguindo
+o padrão de coleção de cards repetíveis já adotado no formulário de repositórios
+do projeto (`RepositorioCardCollection` em `commex/forms.py`). Campos de Scrum
+Master e Product Owner são fixos (1 campo cada, sempre visíveis); campos de
+Desenvolvedor são repetíveis via botão "+", com o botão de remover ocultado
+quando restar apenas um campo de Desenvolvedor.
+
 ## Technical Context
 
 **Language/Version**: Python 3.12
@@ -124,7 +134,14 @@ django-braces, django-filter, psycopg2-binary, gunicorn; suporte leve a busca/au
 
 **Performance Goals**: Formulário de busca por aluno/apelido responsivo o bastante para uso interativo do cadastro de equipe
 
-**Constraints**: Manter compatibilidade com GCloud/static_gcloud, não introduzir frontend conflitado, preservar as bibliotecas já presentes e não quebrar os vínculos atuais de equipes/analises
+**Constraints**: Manter compatibilidade com GCloud/static_gcloud, não introduzir
+frontend conflitado, preservar as bibliotecas já presentes e não quebrar os
+vínculos atuais de equipes/analises. O controle dinâmico de campos de
+Desenvolvedor é feito com jQuery (já presente no projeto via Bootstrap 5 bundle),
+sem adicionar dependência nova. Os campos usam `name` com padrão
+`membros_sm_nome`, `membros_po_nome`, `membros_dev_<index>_nome` e
+`membros_total_devs`, lidos manualmente na view — sem management form do Django
+formset — conforme o padrão adotado em `RepositorioCardCollection`.
 
 **Scale/Scope**: Uso acadêmico e institucional, com volume baixo a moderado de equipes e membros
 
@@ -226,7 +243,15 @@ static_gcloud/
 ### Research decisions to document
 
 - Reaproveitar `commex` com views e forms dedicados ao fluxo de equipe.
-- Implementar composição por formulários dinâmicos ou formset controlado pelo servidor.
+- **[REVISADO]** Substituir formset genérico por coleção manual de campos
+   nomeados por papel, lida na view sem management form, seguindo o padrão
+   `RepositorioCardCollection`. Ver Decisão 4 em `research.md`.
+- Campos SM e PO: fixos, um por papel, sem botão de adicionar.
+- Campos DEV: repetíveis via botão "+"; remoção do último campo bloqueada no
+   cliente por JavaScript.
+- Resolução de aluno: busca por nome exato (case-insensitive); se não encontrar,
+   cria implicitamente. Se houver mais de um resultado, retornar erro de
+   ambiguidade com instrução ao usuário.
 - Manter a unicidade de apelidos no banco para suportar busca e reuso.
 - Preservar alunos e apelidos quando a equipe for excluída.
 
@@ -253,12 +278,42 @@ static_gcloud/
 4. Atualizar o contexto do agente somente se necessário para manter coerência com
    o stack atual.
 
+1. **`data-model.md`** — descrever as entidades e vínculos:
+   - `Aluno`: nome e identificação interna
+   - `ApelidoGithub`: nickname único associado a um aluno
+   - `Equipe`: nome único e composição
+   - `MembroEquipe`: aluno, equipe e papel
+   - `Papel`: SCRUM_MASTER, PRODUCT_OWNER, DESENVOLVEDOR
+   - **[NOVO]** Anotar no data-model a estratégia de resolução de aluno por nome
+     no momento do save: busca case-insensitive, criação implícita se inexistente,
+     erro de ambiguidade se múltiplos resultados.
+
+2. **Contracts** — não aplicável nesta entrega.
+   - O recurso é entregue como fluxo web com páginas Django, não como API pública.
+
+3. **`quickstart.md`** — documentar validação manual:
+   - abrir formulário de nova equipe e confirmar que SM, PO e um campo DEV já
+     aparecem sem nenhuma ação prévia
+   - adicionar segundo Desenvolvedor via botão "+"
+   - tentar remover o único campo de Desenvolvedor e confirmar que é bloqueado
+   - criar equipe com composição válida usando nomes de alunos novos
+   - criar equipe reutilizando aluno existente pelo nome
+   - bloquear apelido duplicado
+   - editar equipe — confirmar que formulário carrega pré-preenchido
+   - excluir equipe mantendo alunos/apelidos
+
+4. Atualizar o contexto do agente somente se necessário para manter coerência com
+   o stack atual.
+
 ## Complexity Tracking
 
 | Violation/Risk | Justificativa | Alternative rejected |
 |---|---|---|
 | Formulário único com membros dinâmicos | A spec exige criação em um único fluxo, com alunos novos e existentes | Tela separada de aluno, rejeitada por violar a spec |
 | Validação de cardinalidade em tempo real | As regras de 1 Scrum Master, 1 Product Owner e >=1 Desenvolvedor são obrigatórias | Permitir salvar e corrigir depois, rejeitado por deixar a equipe inválida |
+| Campos de texto livre em vez de dropdown de papel | A spec revisada define que o formulário deve ter campos nomeados por papel (FR-002); dropdown genérico foi considerado mas gera UX confusa e já foi descartado pelo usuário | Manter `MembroEquipeFormSet` com campo `aluno` (dropdown) e campo `papel` (select): rejeitado porque exige interação extra e não mapeia naturalmente para "insira o nome do Scrum Master" |
+| Resolução de aluno por nome no save | Texto livre é mais natural do que autocomplete no contexto atual; a resolução acontece no backend no momento do save | Autocomplete via AJAX: rejeitado por adicionar complexidade de frontend sem biblioteca já presente |
+| Campos de Desenvolvedor dinâmicos sem management form | Padrão já validado em `RepositorioCardCollection`; evita os bugs de TOTAL_FORMS/INITIAL_FORMS na abertura do form | Reutilizar `MembroEquipeFormSet` com formset padrão do Django: rejeitado porque o mesmo problema de management form já ocorreu e foi resolvido na feature 001 |
 
 ## Progress Tracking
 
@@ -266,6 +321,7 @@ static_gcloud/
 - [x] Phase 0: research.md gerado
 - [x] Phase 1: data-model.md, quickstart.md gerados
 - [x] Post-Design Constitution Check
-- [x] Pronto para `/speckit.tasks`
+- [x] Revisão 2026-08-10: novo padrão de UI de membros documentado no plan, research e data-model
+- [ ] tasks.md atualizado para refletir o novo padrão (via `/speckit.tasks`)
 
 **STOP** — Este plan encerra na Fase 1. A Fase 2 (`tasks.md`) é gerada pelo comando `/speckit.tasks`.

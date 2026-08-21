@@ -41,9 +41,20 @@
                     <dt class="col-sm-4 text-secondary">Repositórios</dt>
                     <dd class="col-sm-8">
                         {% if object.repositorios.exists %}
-                            {% for repo in object.repositorios.all %}
-                                <a href="{{ repo.link }}" target="_blank" rel="noopener noreferrer" class="badge text-bg-info me-1">{{ repo.nome|default:repo.link }}</a>
-                            {% endfor %}
+                            <div class="d-grid gap-2">
+                                {% for repo in object.repositorios.all %}
+                                    <div class="border rounded-3 bg-light p-3">
+                                        <div class="fw-semibold">{{ repo.nome|default:repo.link }}</div>
+                                        <div class="small text-secondary text-break">
+                                            <a href="{{ repo.link }}" target="_blank" rel="noopener noreferrer">{{ repo.link }}</a>
+                                        </div>
+                                        <div class="small mt-1">
+                                            <span class="text-secondary">Branch principal:</span>
+                                            <span class="fw-semibold">{{ repo.branch_principal|default:"-" }}</span>
+                                        </div>
+                                    </div>
+                                {% endfor %}
+                            </div>
                         {% else %}
                             <span class="text-secondary">Nenhum</span>
                         {% endif %}
