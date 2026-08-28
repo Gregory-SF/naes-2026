@@ -42,7 +42,7 @@
                                 <span class="text-secondary">-</span>
                             {% endif %}
                         </td>
-                        <td>{{ projeto.repositorios.count }}</td>
+                        <td>{{ projeto.total_repositorios }}</td>
                         <td class="text-end">
                             <div class="btn-group btn-group-sm" role="group">
                                 <a href="{% url 'projeto-detail' projeto.pk %}" class="btn btn-outline-info">Detalhar</a>

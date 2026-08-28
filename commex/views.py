@@ -1,12 +1,18 @@
+from braces.views import GroupRequiredMixin
 from django.contrib import messages
-from django.contrib.auth.decorators import login_required
-from django.contrib.auth.mixins import LoginRequiredMixin
 from django.db import transaction
-from django.db.models import Prefetch
+from django.db.models import Count, Prefetch
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse, reverse_lazy
 from django.views import View
 from django.views.generic import CreateView, DeleteView, DetailView, ListView, UpdateView
+
+from django.conf import settings
+
+from .decorators import group_required
+
+GRUPO_COORDENADORES = settings.GRUPO_COORDENADORES
+GRUPO_PROFESSORES = settings.GRUPO_PROFESSORES
 
 from .forms import (
     AnaliseExecucaoForm,
@@ -87,36 +93,46 @@ class ProjetoFormMixin:
         return render(self.request, self.template_name, context)
 
 
-class ProjetoCreate(LoginRequiredMixin, ProjetoFormMixin, CreateView):
+class ProjetoCreate(GroupRequiredMixin, ProjetoFormMixin, CreateView):
+    group_required = GRUPO_COORDENADORES
     titulo = 'Cadastro de Projeto'
     botao = 'Criar Projeto'
     success_message = 'Projeto criado com sucesso.'
 
 
-class ProjetoUpdate(LoginRequiredMixin, ProjetoFormMixin, UpdateView):
+class ProjetoUpdate(GroupRequiredMixin, ProjetoFormMixin, UpdateView):
+    group_required = GRUPO_COORDENADORES
     titulo = 'Editar dados do Projeto'
     botao = 'Atualizar Projeto'
     success_message = 'Projeto atualizado com sucesso.'
 
 
-class ProjetoDelete(LoginRequiredMixin, DeleteView):
+class ProjetoDelete(GroupRequiredMixin, DeleteView):
+    group_required = GRUPO_COORDENADORES
     model = Projeto
     template_name = 'commex/form.html'
     success_url = reverse_lazy('projeto-list')
     extra_context = {'titulo': 'Excluir Projeto', 'botao': 'Sim, excluir!'}
 
 
-class ProjetoList(LoginRequiredMixin, ListView):
+class ProjetoList(GroupRequiredMixin, ListView):
+    group_required = [GRUPO_COORDENADORES, GRUPO_PROFESSORES]
     model = Projeto
     template_name = 'commex/list/projeto.html'
     context_object_name = 'projetos'
     paginate_by = 20
 
     def get_queryset(self):
-        return Projeto.objects.prefetch_related('repositorios').order_by('-ano', 'nome')
+        # annotate evita um COUNT por linha ao renderizar a coluna "Repositórios"
+        return (
+            Projeto.objects.prefetch_related('repositorios')
+            .annotate(total_repositorios=Count('repositorios', distinct=True))
+            .order_by('-ano', 'nome')
+        )
 
 
-class ProjetoDetail(LoginRequiredMixin, DetailView):
+class ProjetoDetail(GroupRequiredMixin, DetailView):
+    group_required = [GRUPO_COORDENADORES, GRUPO_PROFESSORES]
     model = Projeto
     template_name = 'commex/detail/projeto.html'
 
@@ -124,7 +140,8 @@ class ProjetoDetail(LoginRequiredMixin, DetailView):
         return Projeto.objects.prefetch_related('repositorios')
 
 
-class EquipeList(LoginRequiredMixin, ListView):
+class EquipeList(GroupRequiredMixin, ListView):
+    group_required = [GRUPO_COORDENADORES, GRUPO_PROFESSORES]
     model = Equipe
     template_name = 'commex/equipes/list.html'
     paginate_by = 20
@@ -137,7 +154,8 @@ class EquipeList(LoginRequiredMixin, ListView):
         )
 
 
-class EquipeDetail(LoginRequiredMixin, DetailView):
+class EquipeDetail(GroupRequiredMixin, DetailView):
+    group_required = [GRUPO_COORDENADORES, GRUPO_PROFESSORES]
     model = Equipe
     template_name = 'commex/equipes/detail.html'
 
@@ -303,7 +321,8 @@ def _persistir_membros_equipe(equipe, resolved_members):
     )
 
 
-class EquipeCreate(LoginRequiredMixin, View):
+class EquipeCreate(GroupRequiredMixin, View):
+    group_required = GRUPO_COORDENADORES
     template_name = 'commex/equipes/form.html'
 
     def get(self, request):
@@ -335,7 +354,8 @@ class EquipeCreate(LoginRequiredMixin, View):
         )
 
 
-class EquipeUpdate(LoginRequiredMixin, View):
+class EquipeUpdate(GroupRequiredMixin, View):
+    group_required = GRUPO_COORDENADORES
     template_name = 'commex/equipes/form.html'
 
     def get_object(self, pk):
@@ -371,7 +391,8 @@ class EquipeUpdate(LoginRequiredMixin, View):
         )
 
 
-class EquipeDelete(LoginRequiredMixin, View):
+class EquipeDelete(GroupRequiredMixin, View):
+    group_required = GRUPO_COORDENADORES
     template_name = 'commex/equipes/confirm_disable.html'
 
     def get(self, request, pk):
@@ -389,7 +410,7 @@ class EquipeDelete(LoginRequiredMixin, View):
         return redirect('equipe-detail', pk=equipe.pk)
 
 
-@login_required
+@group_required(GRUPO_COORDENADORES)
 def membro_delete(request, pk):
     membro = get_object_or_404(MembroEquipe, pk=pk)
     equipe = membro.equipe
@@ -405,13 +426,18 @@ def membro_delete(request, pk):
     return render(request, 'commex/membros/confirm_delete.html', {'object': membro})
 
 
-class SprintList(LoginRequiredMixin, ListView):
+class SprintList(GroupRequiredMixin, ListView):
+    group_required = [GRUPO_COORDENADORES, GRUPO_PROFESSORES]
     model = Sprint
     template_name = 'commex/sprints/list.html'
     paginate_by = 20
 
     def get_queryset(self):
-        qs = Sprint.objects.prefetch_related('projetos').order_by('-data_inicio', 'nome')
+        qs = (
+            Sprint.objects.prefetch_related('projetos')
+            .annotate(total_projetos=Count('projetos', distinct=True))
+            .order_by('-data_inicio', 'nome')
+        )
         self.filter_form = SprintFiltroForm(self.request.GET or None)
         if self.filter_form.is_valid():
             data = self.filter_form.cleaned_data
@@ -431,12 +457,14 @@ class SprintList(LoginRequiredMixin, ListView):
         return ctx
 
 
-class SprintDetail(LoginRequiredMixin, DetailView):
+class SprintDetail(GroupRequiredMixin, DetailView):
+    group_required = [GRUPO_COORDENADORES, GRUPO_PROFESSORES]
     model = Sprint
     template_name = 'commex/sprints/detail.html'
 
 
-class SprintCreate(LoginRequiredMixin, View):
+class SprintCreate(GroupRequiredMixin, View):
+    group_required = GRUPO_COORDENADORES
     template_name = 'commex/sprints/form.html'
 
     def get(self, request):
@@ -452,7 +480,8 @@ class SprintCreate(LoginRequiredMixin, View):
         return render(request, self.template_name, {'form': form, 'titulo': 'Cadastrar Sprint'})
 
 
-class SprintUpdate(LoginRequiredMixin, View):
+class SprintUpdate(GroupRequiredMixin, View):
+    group_required = GRUPO_COORDENADORES
     template_name = 'commex/sprints/form.html'
 
     def get(self, request, pk):
@@ -470,7 +499,7 @@ class SprintUpdate(LoginRequiredMixin, View):
         return render(request, self.template_name, {'form': form, 'titulo': 'Editar Sprint', 'object': sprint})
 
 
-@login_required
+@group_required(GRUPO_COORDENADORES)
 def configuracoes_globais(request):
     bootstrap_dias_aula_choices()
     config = get_or_create_global_settings()
@@ -498,7 +527,7 @@ def configuracoes_globais(request):
     )
 
 
-@login_required
+@group_required(GRUPO_COORDENADORES)
 def configuracoes_remover_token(request):
     if request.method == 'POST':
         clear_token()
@@ -506,7 +535,7 @@ def configuracoes_remover_token(request):
     return redirect('configuracoes-globais')
 
 
-@login_required
+@group_required(GRUPO_COORDENADORES)
 def analysis_branches(request):
     form = BranchCreateForm(request.POST or None)
 
@@ -530,7 +559,7 @@ def analysis_branches(request):
     return render(request, 'commex/analysis/branches.html', {'form': form, 'branches': branches, 'repositorios': repositorios})
 
 
-@login_required
+@group_required(GRUPO_COORDENADORES)
 def analysis_start(request):
     form = AnaliseExecucaoForm(request.POST or None)
     if request.method == 'POST' and form.is_valid():
@@ -557,7 +586,7 @@ def analysis_start(request):
     return render(request, 'commex/analysis/start.html', {'form': form})
 
 
-@login_required
+@group_required(GRUPO_COORDENADORES, GRUPO_PROFESSORES)
 def analysis_status(request, pk=None):
     if pk:
         execucao = get_object_or_404(
@@ -571,11 +600,33 @@ def analysis_status(request, pk=None):
     return render(request, 'commex/analysis/status.html', {'execucoes': execucoes})
 
 
-class IndexView(LoginRequiredMixin, ListView):
+class IndexView(GroupRequiredMixin, ListView):
+    group_required = [GRUPO_COORDENADORES, GRUPO_PROFESSORES]
     model = Projeto
     template_name = 'commex/index.html'
     context_object_name = 'projetos'
     paginate_by = 5
 
     def get_queryset(self):
-        return Projeto.objects.prefetch_related('repositorios').order_by('-ano', 'nome')
+        return (
+            Projeto.objects.prefetch_related('repositorios')
+            .annotate(total_repositorios=Count('repositorios', distinct=True))
+            .order_by('-ano', 'nome')
+        )
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        # QuerySets reaproveitadas para os blocos de "cadastros recentes" da home
+        context['projetos_recentes'] = (
+            Projeto.objects.order_by('-cadastrado_em')[:5]
+        )
+        context['equipes_recentes'] = (
+            Equipe.objects.select_related('projeto').order_by('-id')[:5]
+        )
+        context['sprints_recentes'] = (
+            Sprint.objects.order_by('-data_inicio', 'nome')[:5]
+        )
+        context['total_projetos'] = Projeto.objects.count()
+        context['total_equipes'] = Equipe.objects.count()
+        context['total_sprints'] = Sprint.objects.count()
+        return context

@@ -57,6 +57,11 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
+if DEBUG:
+    INSTALLED_APPS += ['debug_toolbar']
+    MIDDLEWARE = ['debug_toolbar.middleware.DebugToolbarMiddleware'] + MIDDLEWARE
+    INTERNAL_IPS = ['127.0.0.1', 'localhost']
+
 ROOT_URLCONF = 'naes2026.urls'
 CRISPY_ALLOWED_TEMPLATE_PACKS = 'bootstrap5'
 CRISPY_TEMPLATE_PACK = 'bootstrap5'
@@ -142,4 +147,8 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 LOGIN_REDIRECT_URL = 'index'
 LOGOUT_REDIRECT_URL = 'login'
 GLOBAL_SETTINGS_TOKEN_SECRET = os.getenv('GLOBAL_SETTINGS_TOKEN_SECRET', SECRET_KEY)
+
+# Grupos de controle de acesso do app commex
+GRUPO_COORDENADORES = 'Coordenadores'
+GRUPO_PROFESSORES = 'Professores'
 
