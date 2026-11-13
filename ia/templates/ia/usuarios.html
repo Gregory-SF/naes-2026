@@ -1,0 +1,45 @@
+{% extends "commex/base.html" %}
+{% block title %}IA por usuário{% endblock %}
+{% block content %}
+<div class="mb-4">
+    <h1 class="h4 mb-1 text-primary">IA por usuário</h1>
+    <p class="text-secondary mb-0">Cota mensal de tokens, permissão de uso e consumo do mês corrente.</p>
+</div>
+<div class="card border-0 shadow-sm">
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0" id="tabela-usuarios-ia">
+            <thead class="table-light">
+                <tr><th>Usuário</th><th>Cota mensal</th><th style="min-width:200px">Consumo no mês</th><th>Acesso</th><th class="text-end">Ações</th></tr>
+            </thead>
+            <tbody>
+                {% for l in linhas %}
+                <tr>
+                    <td class="fw-semibold">{{ l.usuario.get_username }}</td>
+                    <td>{{ l.cota }}{% if not l.cota_propria %} <span class="text-secondary small">(padrão)</span>{% endif %}</td>
+                    <td>
+                        <div class="progress" role="progressbar" aria-valuenow="{{ l.percentual }}" aria-valuemin="0" aria-valuemax="100">
+                            <div class="progress-bar {% if l.percentual >= 90 %}bg-danger{% elif l.percentual >= 70 %}bg-warning{% endif %}" style="width: {{ l.percentual }}%"></div>
+                        </div>
+                        <small class="text-secondary">{{ l.usado }} / {{ l.cota }} tokens</small>
+                    </td>
+                    <td>{% if l.permitido %}<span class="badge text-bg-success">Permitido</span>{% else %}<span class="badge text-bg-secondary">Bloqueado</span>{% endif %}</td>
+                    <td class="text-end"><a class="btn btn-sm btn-outline-primary" href="{% url 'ia:usuario-editar' l.usuario.pk %}">Editar cota</a></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    $(function () {
+        $('#tabela-usuarios-ia').DataTable({
+            paging: false, info: false,
+            language: { search: 'Buscar:', zeroRecords: 'Nenhum usuário encontrado.' },
+            columnDefs: [{ targets: -1, orderable: false }],
+        });
+    });
+</script>
+{% endblock %}

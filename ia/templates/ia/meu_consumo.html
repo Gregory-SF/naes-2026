@@ -1,0 +1,50 @@
+{% extends "commex/base.html" %}
+{% block title %}Meu consumo de IA{% endblock %}
+{% block content %}
+<div class="mb-4">
+    <h1 class="h4 mb-1 text-primary">Meu consumo de IA</h1>
+    <p class="text-secondary mb-0">Tokens usados neste mês. A cota é renovada no primeiro dia de cada mês.</p>
+</div>
+
+{% if not permitido %}
+<div class="alert alert-warning">Seu usuário está sem permissão para usar a IA. Procure um coordenador.</div>
+{% endif %}
+
+<div class="row g-3 mb-4">
+    <div class="col-sm-4"><div class="card border-0 shadow-sm h-100"><div class="card-body">
+        <p class="text-secondary mb-1 small text-uppercase">Cota mensal</p><p class="h3 mb-0 text-primary">{{ cota }}</p>
+    </div></div></div>
+    <div class="col-sm-4"><div class="card border-0 shadow-sm h-100"><div class="card-body">
+        <p class="text-secondary mb-1 small text-uppercase">Usado</p><p class="h3 mb-0 text-primary">{{ usado }}</p>
+    </div></div></div>
+    <div class="col-sm-4"><div class="card border-0 shadow-sm h-100"><div class="card-body">
+        <p class="text-secondary mb-1 small text-uppercase">Restante</p><p class="h3 mb-0 text-primary">{{ restante }}</p>
+    </div></div></div>
+</div>
+
+<div class="progress mb-4" style="height: 1.25rem" role="progressbar" aria-valuenow="{{ percentual }}" aria-valuemin="0" aria-valuemax="100">
+    <div class="progress-bar {% if percentual >= 90 %}bg-danger{% elif percentual >= 70 %}bg-warning{% endif %}" style="width: {{ percentual }}%">{{ percentual }}%</div>
+</div>
+
+<div class="card border-0 shadow-sm">
+    <div class="card-header bg-white fw-semibold">Minhas últimas requisições</div>
+    <div class="table-responsive">
+        <table class="table align-middle mb-0">
+            <thead class="table-light"><tr><th>Data</th><th>Origem</th><th>Pergunta</th><th class="text-end">Tokens</th><th>Status</th></tr></thead>
+            <tbody>
+                {% for r in requisicoes %}
+                <tr>
+                    <td class="text-nowrap">{{ r.criado_em|date:"d/m/Y H:i" }}</td>
+                    <td>{{ r.origem }}</td>
+                    <td>{{ r.pergunta|truncatechars:70 }}</td>
+                    <td class="text-end">{{ r.tokens_total }}</td>
+                    <td><span class="badge {% if r.status == 'SUCESSO' %}text-bg-success{% elif r.status == 'ERRO' %}text-bg-danger{% else %}text-bg-warning{% endif %}">{{ r.get_status_display }}</span></td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="5" class="text-center py-4">Você ainda não usou a IA neste sistema.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

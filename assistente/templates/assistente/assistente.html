@@ -1,0 +1,112 @@
+{% extends "commex/base.html" %}
+{% block title %}Assistente{% endblock %}
+
+{% block extra_head %}
+<style>
+    #chat-janela { height: 55vh; min-height: 320px; overflow-y: auto; background: #f4f9fa; }
+    .msg { max-width: 85%; padding: .6rem .9rem; border-radius: .75rem; margin-bottom: .75rem; word-wrap: break-word; }
+    .msg-user { background: var(--bs-primary); color: #fff; margin-left: auto; }
+    .msg-assistant { background: #fff; border: 1px solid var(--bs-border-color); }
+    .msg p:last-child { margin-bottom: 0; }
+    .msg pre { background: #0b2b30; color: #e6f2f3; padding: .6rem; border-radius: .4rem; overflow-x: auto; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+    <div>
+        <h1 class="h4 mb-1 text-primary">Assistente</h1>
+        <p class="text-secondary mb-0">Tire dúvidas sobre o uso do sistema NAES Projetos.</p>
+    </div>
+    <form method="post" action="{% url 'assistente-limpar' %}" onsubmit="return confirm('Apagar todo o histórico da conversa?');">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-sm btn-outline-danger">Limpar conversa</button>
+    </form>
+</div>
+
+<div class="card border-0 shadow-sm">
+    <div id="chat-janela" class="card-body" aria-live="polite"></div>
+    <div class="card-footer bg-white">
+        <div id="chat-erro" class="alert alert-danger py-2 d-none" role="alert"></div>
+        <form id="chat-form" class="d-flex gap-2" autocomplete="off">
+            {% csrf_token %}
+            <input type="text" id="chat-pergunta" class="form-control" maxlength="{{ max_caracteres }}" placeholder="Digite sua pergunta..." required>
+            <button type="submit" id="chat-enviar" class="btn btn-primary">Enviar</button>
+        </form>
+    </div>
+</div>
+
+{{ historico|json_script:"chat-historico" }}
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.2/marked.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.1.6/purify.min.js"></script>
+<script>
+$(function () {
+    var $janela = $('#chat-janela');
+    var $erro = $('#chat-erro');
+    var urlPerguntar = "{% url 'assistente-perguntar' %}";
+
+    // Markdown -> HTML sempre sanitizado antes de ir para o DOM
+    function renderizar(markdown) {
+        var html = marked.parse(markdown, { breaks: true });
+        return DOMPurify.sanitize(html, {
+            ALLOWED_TAGS: ['p', 'br', 'strong', 'em', 'b', 'i', 'ul', 'ol', 'li', 'code', 'pre',
+                           'blockquote', 'h1', 'h2', 'h3', 'h4', 'a', 'table', 'thead', 'tbody', 'tr', 'th', 'td', 'hr'],
+            ALLOWED_ATTR: ['href'],
+            ALLOWED_URI_REGEXP: /^(?:https?|mailto):/i,
+        });
+    }
+
+    function adicionar(papel, texto) {
+        var $m = $('<div>').addClass('msg ' + (papel === 'user' ? 'msg-user' : 'msg-assistant'));
+        if (papel === 'user') {
+            $m.text(texto);                 // pergunta do usuário: texto puro
+        } else {
+            $m.html(renderizar(texto));     // resposta da IA: Markdown sanitizado
+            $m.find('a').attr({ target: '_blank', rel: 'noopener noreferrer' });
+        }
+        $janela.append($m);
+        $janela.scrollTop($janela[0].scrollHeight);
+        return $m;
+    }
+
+    var historico = JSON.parse(document.getElementById('chat-historico').textContent);
+    if (historico.length === 0) {
+        adicionar('assistant', 'Olá! Sou o assistente do **NAES Projetos**. Pergunte, por exemplo: *como cadastro uma equipe?*');
+    }
+    historico.forEach(function (m) { adicionar(m.papel, m.conteudo); });
+
+    $('#chat-form').on('submit', function (e) {
+        e.preventDefault();
+        var pergunta = $('#chat-pergunta').val().trim();
+        if (!pergunta) { return; }
+        $erro.addClass('d-none');
+        adicionar('user', pergunta);
+        $('#chat-pergunta').val('');
+        $('#chat-enviar').prop('disabled', true).text('Enviando...');
+        var $pensando = adicionar('assistant', '_Pensando..._');
+
+        $.ajax({
+            url: urlPerguntar,
+            method: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify({ pergunta: pergunta }),
+            headers: { 'X-CSRFToken': $('#chat-form input[name=csrfmiddlewaretoken]').val() },
+        }).done(function (dados) {
+            $pensando.html(renderizar(dados.resposta));
+            $pensando.find('a').attr({ target: '_blank', rel: 'noopener noreferrer' });
+        }).fail(function (xhr) {
+            $pensando.remove();
+            var msg = (xhr.responseJSON && xhr.responseJSON.erro) || 'Não foi possível enviar a pergunta.';
+            $erro.text(msg).removeClass('d-none');
+        }).always(function () {
+            $('#chat-enviar').prop('disabled', false).text('Enviar');
+            $janela.scrollTop($janela[0].scrollHeight);
+            $('#chat-pergunta').trigger('focus');
+        });
+    });
+});
+</script>
+{% endblock %}
