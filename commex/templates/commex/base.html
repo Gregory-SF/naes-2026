@@ -65,19 +65,38 @@
                         <li class="nav-item">
                             <a class="nav-link" href="{% url 'sprint-list' %}">Sprints</a>
                         </li>
+                        {% if eh_coordenador %}
                         <li class="nav-item">
                             <a class="nav-link" href="{% url 'projeto-create' %}">Novo Projeto</a>
+                        </li>
+                        {% endif %}
+                        <li class="nav-item">
+                            <a class="nav-link" href="{% url 'assistente' %}">Assistente</a>
+                        </li>
+                        <li class="nav-item dropdown">
+                            <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">IA</a>
+                            <ul class="dropdown-menu border-0 shadow">
+                                <li><a class="dropdown-item" href="{% url 'ia:meu-consumo' %}">Meu consumo</a></li>
+                                {% if eh_coordenador %}
+                                <li><hr class="dropdown-divider"></li>
+                                <li><a class="dropdown-item" href="{% url 'ia:requisicoes' %}">Requisições</a></li>
+                                <li><a class="dropdown-item" href="{% url 'ia:configuracao' %}">Configuração</a></li>
+                                <li><a class="dropdown-item" href="{% url 'ia:usuarios' %}">IA por usuário</a></li>
+                                {% endif %}
+                            </ul>
                         </li>
                         <li class="nav-item dropdown">
                             <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">Ações</a>
                             <ul class="dropdown-menu border-0 shadow">
                                 <li><a class="dropdown-item" href="{% url 'projeto-list' %}">Listar projetos</a></li>
-                                <li><a class="dropdown-item" href="{% url 'projeto-create' %}">Cadastrar projeto</a></li>
+                                {% if eh_coordenador %}<li><a class="dropdown-item" href="{% url 'projeto-create' %}">Cadastrar projeto</a></li>{% endif %}
                                 <li><a class="dropdown-item" href="{% url 'equipe-list' %}">Listar equipes</a></li>
                                 <li><a class="dropdown-item" href="{% url 'sprint-list' %}">Listar sprints</a></li>
+                                {% if eh_coordenador %}
                                 <li><a class="dropdown-item" href="{% url 'configuracoes-globais' %}">Configurações globais</a></li>
                                 <li><a class="dropdown-item" href="{% url 'analysis-start' %}">Iniciar análise</a></li>
                                 <li><a class="dropdown-item" href="{% url 'analysis-branches' %}">Branches</a></li>
+                                {% endif %}
                                 <li><a class="dropdown-item" href="{% url 'password_change' %}">Alterar senha</a></li>
                             </ul>
                         </li>
@@ -103,6 +122,16 @@
 
     <main class="flex-grow-1">
         <div class="container">
+            {% if messages %}
+            <div class="mb-3" aria-live="polite">
+                {% for message in messages %}
+                <div class="alert alert-{{ message.tags|default:'info' }} alert-dismissible fade show" role="alert">
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Fechar"></button>
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
             {% block content %}{% endblock %}
         </div>
     </main>

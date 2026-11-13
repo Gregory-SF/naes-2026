@@ -35,6 +35,14 @@ class Sprint(models.Model):
     data_inicio = models.DateField()
     data_fim = models.DateField()
     ativo = models.BooleanField(default=True)
+    cadastrado_por = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        editable=False,
+        related_name='%(class)ss_cadastrados',
+    )
 
     def __str__(self):
         return f'{self.nome} ({self.data_inicio} - {self.data_fim})'
@@ -100,6 +108,14 @@ class Projeto(models.Model):
     link_organizacao_github = models.URLField(verbose_name='link da organização/conta GitHub', blank=False, default='')
     repositorios = models.ManyToManyField('Repositorio', related_name='projetos', blank=True)
     sprints = models.ManyToManyField(Sprint, related_name='projetos', blank=True)
+    cadastrado_por = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        editable=False,
+        related_name='%(class)ss_cadastrados',
+    )
     cadastrado_em = models.DateTimeField(auto_now_add=True)
     atualizado_em = models.DateTimeField(auto_now=True)
 
@@ -126,6 +142,14 @@ class Equipe(models.Model):
     projeto = models.ForeignKey(Projeto, on_delete=models.PROTECT, related_name='equipes')
     alunos = models.ManyToManyField(Aluno, through='MembroEquipe', related_name='equipes')
     ativo = models.BooleanField(default=True)
+    cadastrado_por = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        editable=False,
+        related_name='%(class)ss_cadastrados',
+    )
 
     def __str__(self):
         return f'{self.nome} - {self.projeto.nome}'

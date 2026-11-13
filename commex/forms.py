@@ -35,7 +35,8 @@ class ProjetoForm(forms.ModelForm):
         model = Projeto
         fields = ['nome', 'status', 'ano', 'dias_aula', 'link_organizacao_github']
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, user=None, **kwargs):
+        self.user = user
         super().__init__(*args, **kwargs)
         self.fields['status'].choices = StatusProjeto.choices
         for name in ['nome', 'ano', 'link_organizacao_github', 'nova_sprint_nome', 'nova_sprint_data_inicio', 'nova_sprint_data_fim']:
@@ -95,6 +96,7 @@ class ProjetoForm(forms.ModelForm):
                 nome=self.cleaned_data['nova_sprint_nome'],
                 data_inicio=self.cleaned_data['nova_sprint_data_inicio'],
                 data_fim=self.cleaned_data['nova_sprint_data_fim'],
+                cadastrado_por=instance.cadastrado_por,
             )
             instance.sprints.add(sprint)
 
@@ -297,9 +299,10 @@ class EquipeForm(forms.ModelForm):
         model = Equipe
         fields = ['nome', 'projeto', 'ativo']
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, user=None, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields['projeto'].queryset = Projeto.objects.filter(status=StatusProjeto.ATIVO)
+        # Só é possível vincular a equipe a projetos do próprio usuário
+        self.fields['projeto'].queryset = Projeto.objects.filter(status=StatusProjeto.ATIVO, cadastrado_por=user)
         self.fields['nome'].widget.attrs.update({'class': 'form-control'})
         self.fields['projeto'].widget.attrs.update({'class': 'form-select'})
         self.fields['ativo'].widget.attrs.update({'class': 'form-check-input'})
@@ -333,6 +336,11 @@ class SprintForm(forms.ModelForm):
             'data_inicio': forms.DateInput(attrs={'type': 'date'}),
             'data_fim': forms.DateInput(attrs={'type': 'date'}),
         }
+
+    def __init__(self, *args, user=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Só é possível vincular a sprint a projetos do próprio usuário
+        self.fields['projetos'].queryset = Projeto.objects.filter(status=StatusProjeto.ATIVO, cadastrado_por=user)
 
     def clean(self):
         cleaned = super().clean()

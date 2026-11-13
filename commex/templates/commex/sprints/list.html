@@ -5,7 +5,7 @@
   <h1 class="h4 mb-0">Sprints</h1>
   <a class="btn btn-primary" href="{% url 'sprint-create' %}">Nova sprint</a>
 </div>
-<form method="get" class="card card-body mb-3">{{ filter_form.as_p }}<button class="btn btn-outline-primary" type="submit">Filtrar</button></form>
+{% include 'commex/includes/filtro.html' %}
 <div class="card shadow-sm border-0"><div class="table-responsive"><table class="table mb-0" id="tabela-sprints">
 <thead><tr><th>Nome</th><th>Período</th><th>Projetos</th><th>Ações</th></tr></thead>
 <tbody>
@@ -14,23 +14,7 @@
 {% empty %}<tr><td colspan="4" class="text-center">Nenhuma sprint.</td></tr>{% endfor %}
 </tbody></table></div></div>
 
-{% if is_paginated %}
-<nav class="mt-4" aria-label="Paginação">
-    <ul class="pagination justify-content-center">
-        {% if page_obj.has_previous %}
-            <li class="page-item"><a class="page-link" href="?page={{ page_obj.previous_page_number }}">Anterior</a></li>
-        {% else %}
-            <li class="page-item disabled"><span class="page-link">Anterior</span></li>
-        {% endif %}
-        <li class="page-item active"><span class="page-link">{{ page_obj.number }}</span></li>
-        {% if page_obj.has_next %}
-            <li class="page-item"><a class="page-link" href="?page={{ page_obj.next_page_number }}">Próxima</a></li>
-        {% else %}
-            <li class="page-item disabled"><span class="page-link">Próxima</span></li>
-        {% endif %}
-    </ul>
-</nav>
-{% endif %}
+{% include 'commex/includes/paginacao.html' %}
 {% endblock %}
 
 {% block extra_js %}

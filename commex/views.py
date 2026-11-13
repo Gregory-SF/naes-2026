@@ -1,11 +1,13 @@
 from braces.views import GroupRequiredMixin
 from django.contrib import messages
 from django.db import transaction
+from django.db.models import ProtectedError
 from django.db.models import Count, Prefetch
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse, reverse_lazy
 from django.views import View
 from django.views.generic import CreateView, DeleteView, DetailView, ListView, UpdateView
+from django_filters.views import FilterView
 
 from django.conf import settings
 
@@ -14,6 +16,7 @@ from .decorators import group_required
 GRUPO_COORDENADORES = settings.GRUPO_COORDENADORES
 GRUPO_PROFESSORES = settings.GRUPO_PROFESSORES
 
+from .filters import EquipeFilter, ProjetoFilter, SprintFilter
 from .forms import (
     AnaliseExecucaoForm,
     BranchCreateForm,
@@ -21,7 +24,6 @@ from .forms import (
     EquipeForm,
     ProjetoForm,
     build_projeto_repositorio_formset,
-    SprintFiltroForm,
     SprintForm,
     sync_projeto_repositorios,
 )
@@ -50,6 +52,13 @@ from .services.global_settings import (
 )
 
 
+class DonoQuerysetMixin:
+    """Restringe o queryset aos registros cadastrados pelo usuário logado (404 para os de outros)."""
+
+    def get_queryset(self):
+        return super().get_queryset().filter(cadastrado_por=self.request.user)
+
+
 class ProjetoFormMixin:
     """Monta e valida o formset de repositórios junto com o ModelForm de Projeto."""
 
@@ -57,6 +66,14 @@ class ProjetoFormMixin:
     form_class = ProjetoForm
     template_name = 'commex/form.html'
     success_url = reverse_lazy('projeto-list')
+
+    def get_queryset(self):
+        return Projeto.objects.filter(cadastrado_por=self.request.user)
+
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs['user'] = self.request.user
+        return kwargs
 
     def get_repositorio_formset(self, data=None):
         return build_projeto_repositorio_formset(
@@ -81,6 +98,8 @@ class ProjetoFormMixin:
         return self.form_invalid(form, repositorio_formset)
 
     def form_valid(self, form, repositorio_formset):
+        if not form.instance.pk:
+            form.instance.cadastrado_por = self.request.user
         with transaction.atomic():
             projeto = form.save()
             sync_projeto_repositorios(projeto, repositorio_formset)
@@ -107,17 +126,28 @@ class ProjetoUpdate(GroupRequiredMixin, ProjetoFormMixin, UpdateView):
     success_message = 'Projeto atualizado com sucesso.'
 
 
-class ProjetoDelete(GroupRequiredMixin, DeleteView):
+class ProjetoDelete(GroupRequiredMixin, DonoQuerysetMixin, DeleteView):
     group_required = GRUPO_COORDENADORES
     model = Projeto
     template_name = 'commex/form.html'
     success_url = reverse_lazy('projeto-list')
     extra_context = {'titulo': 'Excluir Projeto', 'botao': 'Sim, excluir!'}
 
+    def form_valid(self, form):
+        nome = self.object.nome
+        try:
+            response = super().form_valid(form)
+        except ProtectedError:
+            messages.error(self.request, f'Não é possível excluir o projeto "{nome}": existem equipes ou análises vinculadas.')
+            return redirect('projeto-list')
+        messages.success(self.request, f'Projeto "{nome}" excluído com sucesso.')
+        return response
 
-class ProjetoList(GroupRequiredMixin, ListView):
+
+class ProjetoList(GroupRequiredMixin, FilterView):
     group_required = [GRUPO_COORDENADORES, GRUPO_PROFESSORES]
     model = Projeto
+    filterset_class = ProjetoFilter
     template_name = 'commex/list/projeto.html'
     context_object_name = 'projetos'
     paginate_by = 20
@@ -125,7 +155,8 @@ class ProjetoList(GroupRequiredMixin, ListView):
     def get_queryset(self):
         # annotate evita um COUNT por linha ao renderizar a coluna "Repositórios"
         return (
-            Projeto.objects.prefetch_related('repositorios')
+            Projeto.objects.filter(cadastrado_por=self.request.user)
+            .prefetch_related('repositorios')
             .annotate(total_repositorios=Count('repositorios', distinct=True))
             .order_by('-ano', 'nome')
         )
@@ -137,18 +168,20 @@ class ProjetoDetail(GroupRequiredMixin, DetailView):
     template_name = 'commex/detail/projeto.html'
 
     def get_queryset(self):
-        return Projeto.objects.prefetch_related('repositorios')
+        return Projeto.objects.filter(cadastrado_por=self.request.user).prefetch_related('repositorios')
 
 
-class EquipeList(GroupRequiredMixin, ListView):
+class EquipeList(GroupRequiredMixin, FilterView):
     group_required = [GRUPO_COORDENADORES, GRUPO_PROFESSORES]
     model = Equipe
+    filterset_class = EquipeFilter
     template_name = 'commex/equipes/list.html'
     paginate_by = 20
 
     def get_queryset(self):
         return (
-            Equipe.objects.select_related('projeto')
+            Equipe.objects.filter(cadastrado_por=self.request.user)
+            .select_related('projeto')
             .prefetch_related('membros__aluno')
             .order_by('nome')
         )
@@ -161,13 +194,14 @@ class EquipeDetail(GroupRequiredMixin, DetailView):
 
     def get_queryset(self):
         return (
-            Equipe.objects.select_related('projeto')
+            Equipe.objects.filter(cadastrado_por=self.request.user)
+            .select_related('projeto')
             .prefetch_related('membros__aluno')
         )
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        membros = self.object.membros.select_related('aluno').all()
+        membros = list(self.object.membros.all())  # já vem do prefetch (membros__aluno)
         context['membros_sm'] = [m for m in membros if m.papel == PapelScrum.SCRUM_MASTER]
         context['membros_po'] = [m for m in membros if m.papel == PapelScrum.PRODUCT_OWNER]
         context['membros_dev'] = [m for m in membros if m.papel == PapelScrum.DESENVOLVEDOR]
@@ -326,7 +360,7 @@ class EquipeCreate(GroupRequiredMixin, View):
     template_name = 'commex/equipes/form.html'
 
     def get(self, request):
-        form = EquipeForm()
+        form = EquipeForm(user=request.user)
         member_data = _initial_member_data()
         member_errors = {'sm_nome': '', 'po_nome': '', 'dev_nomes': {}, 'geral': []}
         return render(
@@ -336,13 +370,15 @@ class EquipeCreate(GroupRequiredMixin, View):
         )
 
     def post(self, request):
-        form = EquipeForm(request.POST)
+        form = EquipeForm(request.POST, user=request.user)
         member_data = _extract_member_data(request.POST)
         resolved_members, member_errors = _validar_e_resolver_membros(member_data)
 
         if form.is_valid() and resolved_members is not None:
             with transaction.atomic():
-                equipe = form.save()
+                equipe = form.save(commit=False)
+                equipe.cadastrado_por = request.user
+                equipe.save()
                 _persistir_membros_equipe(equipe, resolved_members)
             messages.success(request, 'Equipe criada com sucesso.')
             return redirect('equipe-detail', pk=equipe.pk)
@@ -359,11 +395,11 @@ class EquipeUpdate(GroupRequiredMixin, View):
     template_name = 'commex/equipes/form.html'
 
     def get_object(self, pk):
-        return get_object_or_404(Equipe, pk=pk)
+        return get_object_or_404(Equipe, pk=pk, cadastrado_por=self.request.user)
 
     def get(self, request, pk):
         equipe = self.get_object(pk)
-        form = EquipeForm(instance=equipe)
+        form = EquipeForm(instance=equipe, user=request.user)
         member_data = _initial_member_data(equipe)
         member_errors = {'sm_nome': '', 'po_nome': '', 'dev_nomes': {}, 'geral': []}
         return render(
@@ -374,7 +410,7 @@ class EquipeUpdate(GroupRequiredMixin, View):
 
     def post(self, request, pk):
         equipe = self.get_object(pk)
-        form = EquipeForm(request.POST, instance=equipe)
+        form = EquipeForm(request.POST, instance=equipe, user=request.user)
         member_data = _extract_member_data(request.POST)
         resolved_members, member_errors = _validar_e_resolver_membros(member_data)
 
@@ -396,11 +432,11 @@ class EquipeDelete(GroupRequiredMixin, View):
     template_name = 'commex/equipes/confirm_disable.html'
 
     def get(self, request, pk):
-        equipe = get_object_or_404(Equipe, pk=pk)
+        equipe = get_object_or_404(Equipe, pk=pk, cadastrado_por=request.user)
         return render(request, self.template_name, {'object': equipe})
 
     def post(self, request, pk):
-        equipe = get_object_or_404(Equipe, pk=pk)
+        equipe = get_object_or_404(Equipe, pk=pk, cadastrado_por=request.user)
         if equipe.membros.count() == 0:
             equipe.ativo = False
             equipe.save(update_fields=['ativo'])
@@ -412,7 +448,7 @@ class EquipeDelete(GroupRequiredMixin, View):
 
 @group_required(GRUPO_COORDENADORES)
 def membro_delete(request, pk):
-    membro = get_object_or_404(MembroEquipe, pk=pk)
+    membro = get_object_or_404(MembroEquipe.objects.select_related('equipe'), pk=pk, equipe__cadastrado_por=request.user)
     equipe = membro.equipe
     if request.method == 'POST':
         if membro.papel != PapelScrum.DESENVOLVEDOR:
@@ -426,41 +462,29 @@ def membro_delete(request, pk):
     return render(request, 'commex/membros/confirm_delete.html', {'object': membro})
 
 
-class SprintList(GroupRequiredMixin, ListView):
+class SprintList(GroupRequiredMixin, FilterView):
     group_required = [GRUPO_COORDENADORES, GRUPO_PROFESSORES]
     model = Sprint
+    filterset_class = SprintFilter
     template_name = 'commex/sprints/list.html'
     paginate_by = 20
 
     def get_queryset(self):
-        qs = (
-            Sprint.objects.prefetch_related('projetos')
+        return (
+            Sprint.objects.filter(cadastrado_por=self.request.user)
+            .prefetch_related('projetos')
             .annotate(total_projetos=Count('projetos', distinct=True))
             .order_by('-data_inicio', 'nome')
         )
-        self.filter_form = SprintFiltroForm(self.request.GET or None)
-        if self.filter_form.is_valid():
-            data = self.filter_form.cleaned_data
-            if data.get('nome'):
-                qs = qs.filter(nome__icontains=data['nome'])
-            if data.get('projeto'):
-                qs = qs.filter(projetos=data['projeto'])
-            if data.get('inicio_de'):
-                qs = qs.filter(data_inicio__gte=data['inicio_de'])
-            if data.get('fim_ate'):
-                qs = qs.filter(data_fim__lte=data['fim_ate'])
-        return qs.distinct()
-
-    def get_context_data(self, **kwargs):
-        ctx = super().get_context_data(**kwargs)
-        ctx['filter_form'] = getattr(self, 'filter_form', SprintFiltroForm())
-        return ctx
 
 
-class SprintDetail(GroupRequiredMixin, DetailView):
+class SprintDetail(GroupRequiredMixin, DonoQuerysetMixin, DetailView):
     group_required = [GRUPO_COORDENADORES, GRUPO_PROFESSORES]
     model = Sprint
     template_name = 'commex/sprints/detail.html'
+
+    def get_queryset(self):
+        return super().get_queryset().prefetch_related('projetos')
 
 
 class SprintCreate(GroupRequiredMixin, View):
@@ -468,13 +492,16 @@ class SprintCreate(GroupRequiredMixin, View):
     template_name = 'commex/sprints/form.html'
 
     def get(self, request):
-        form = SprintForm()
+        form = SprintForm(user=request.user)
         return render(request, self.template_name, {'form': form, 'titulo': 'Cadastrar Sprint'})
 
     def post(self, request):
-        form = SprintForm(request.POST)
+        form = SprintForm(request.POST, user=request.user)
         if form.is_valid():
-            sprint = form.save()
+            sprint = form.save(commit=False)
+            sprint.cadastrado_por = request.user
+            sprint.save()
+            sprint.projetos.set(form.cleaned_data.get('projetos', []))
             messages.success(request, 'Sprint criada com sucesso.')
             return redirect('sprint-detail', pk=sprint.pk)
         return render(request, self.template_name, {'form': form, 'titulo': 'Cadastrar Sprint'})
@@ -485,13 +512,13 @@ class SprintUpdate(GroupRequiredMixin, View):
     template_name = 'commex/sprints/form.html'
 
     def get(self, request, pk):
-        sprint = get_object_or_404(Sprint, pk=pk)
-        form = SprintForm(instance=sprint, initial={'projetos': sprint.projetos.all()})
+        sprint = get_object_or_404(Sprint, pk=pk, cadastrado_por=request.user)
+        form = SprintForm(instance=sprint, user=request.user, initial={'projetos': sprint.projetos.all()})
         return render(request, self.template_name, {'form': form, 'titulo': 'Editar Sprint', 'object': sprint})
 
     def post(self, request, pk):
-        sprint = get_object_or_404(Sprint, pk=pk)
-        form = SprintForm(request.POST, instance=sprint)
+        sprint = get_object_or_404(Sprint, pk=pk, cadastrado_por=request.user)
+        form = SprintForm(request.POST, instance=sprint, user=request.user)
         if form.is_valid():
             form.save()
             messages.success(request, 'Sprint atualizada com sucesso.')
@@ -609,24 +636,23 @@ class IndexView(GroupRequiredMixin, ListView):
 
     def get_queryset(self):
         return (
-            Projeto.objects.prefetch_related('repositorios')
+            Projeto.objects.filter(cadastrado_por=self.request.user)
+            .prefetch_related('repositorios')
             .annotate(total_repositorios=Count('repositorios', distinct=True))
             .order_by('-ano', 'nome')
         )
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        # QuerySets reaproveitadas para os blocos de "cadastros recentes" da home
-        context['projetos_recentes'] = (
-            Projeto.objects.order_by('-cadastrado_em')[:5]
-        )
-        context['equipes_recentes'] = (
-            Equipe.objects.select_related('projeto').order_by('-id')[:5]
-        )
-        context['sprints_recentes'] = (
-            Sprint.objects.order_by('-data_inicio', 'nome')[:5]
-        )
-        context['total_projetos'] = Projeto.objects.count()
-        context['total_equipes'] = Equipe.objects.count()
-        context['total_sprints'] = Sprint.objects.count()
+        usuario = self.request.user
+        equipes = Equipe.objects.filter(cadastrado_por=usuario)
+        sprints = Sprint.objects.filter(cadastrado_por=usuario)
+        projetos = Projeto.objects.filter(cadastrado_por=usuario)
+        context['projetos_recentes'] = projetos.order_by('-cadastrado_em')[:5]
+        context['equipes_recentes'] = equipes.select_related('projeto').order_by('-id')[:5]
+        context['sprints_recentes'] = sprints.order_by('-data_inicio', 'nome')[:5]
+        # o total de projetos vem do paginator (que já executou o COUNT da lista)
+        context['total_projetos'] = context['paginator'].count if context.get('paginator') else projetos.count()
+        context['total_equipes'] = equipes.count()
+        context['total_sprints'] = sprints.count()
         return context
