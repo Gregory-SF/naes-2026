@@ -1,4 +1,13 @@
-runtime: python312 
+runtime: python312
+
+# Segredos (SECRET_KEY, DATABASE_URL...) ficam em env_variables.yaml, que não é versionado.
+# Crie-o a partir de env_variables.yaml.example antes do deploy.
+includes:
+  - env_variables.yaml
+
+env_variables:
+  DEBUG: "0"
+
 
 entrypoint: gunicorn -b :$PORT --workers 1 --threads 4 naes2026.wsgi
 

@@ -22,13 +22,18 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
-# SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-e2(e3j8@-6%csbi7lgk91#wscl%g#_a3gu-+z%6u(5wwev3t0^'
+# Segredos e configuração por ambiente (nunca versionar valores reais).
+# Em produção (App Engine) as variáveis vêm de env_variables.yaml (veja env_variables.yaml.example).
+DEBUG = os.getenv('DEBUG', '1') == '1'
 
-# SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+SECRET_KEY = os.getenv('SECRET_KEY', '')
+if not SECRET_KEY:
+    if not DEBUG:
+        raise RuntimeError('Defina a variável de ambiente SECRET_KEY em produção.')
+    SECRET_KEY = 'django-insecure-chave-somente-para-desenvolvimento-local'
 
-ALLOWED_HOSTS = ['*']
+ALLOWED_HOSTS = [h.strip() for h in os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1,.appspot.com').split(',') if h.strip()]
+CSRF_TRUSTED_ORIGINS = [o.strip() for o in os.getenv('CSRF_TRUSTED_ORIGINS', 'https://*.appspot.com').split(',') if o.strip()]
 
 
 # Application definition
@@ -42,9 +47,12 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'crispy_forms',
     'crispy_bootstrap5',
+    'django_filters',
 
     # Ativar meus apps
     "commex.apps.CommexConfig",
+    "ia.apps.IaConfig",
+    "assistente.apps.AssistenteConfig",
 ]
 
 MIDDLEWARE = [
@@ -76,6 +84,7 @@ TEMPLATES = [
                 'django.template.context_processors.request',
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
+                'commex.context_processors.permissoes',
             ],
         },
     },
@@ -87,19 +96,29 @@ WSGI_APPLICATION = 'naes2026.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
-tmpPostgres = urlparse("postgresql://neondb_owner:npg_J6jtRphgF0Kx@ep-wandering-water-ac35aisy-pooler.sa-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require")
-
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': tmpPostgres.path.replace('/', ''),
-        'USER': tmpPostgres.username,
-        'PASSWORD': tmpPostgres.password,
-        'HOST': tmpPostgres.hostname,
-        'PORT': 5432,
-        'OPTIONS': dict(parse_qsl(tmpPostgres.query)),
+# DATABASE_URL (ex.: postgresql://usuario:senha@host/banco?sslmode=require) aponta para o Neon.
+# Sem ela, usa SQLite local (db_local.sqlite3), o que evita alterar o banco remoto por engano.
+_database_url = os.getenv('DATABASE_URL', '')
+if _database_url:
+    tmpPostgres = urlparse(_database_url)
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.postgresql',
+            'NAME': tmpPostgres.path.replace('/', ''),
+            'USER': tmpPostgres.username,
+            'PASSWORD': tmpPostgres.password,
+            'HOST': tmpPostgres.hostname,
+            'PORT': tmpPostgres.port or 5432,
+            'OPTIONS': dict(parse_qsl(tmpPostgres.query)),
+        }
     }
-}
+else:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': BASE_DIR / 'db_local.sqlite3',
+        }
+    }
 
 # Password validation
 # https://docs.djangoproject.com/en/5.2/ref/settings/#auth-password-validators
@@ -152,3 +171,10 @@ GLOBAL_SETTINGS_TOKEN_SECRET = os.getenv('GLOBAL_SETTINGS_TOKEN_SECRET', SECRET_
 GRUPO_COORDENADORES = 'Coordenadores'
 GRUPO_PROFESSORES = 'Professores'
 
+
+# Mensagens do Django -> classes do Bootstrap
+from django.contrib.messages import constants as _messages
+MESSAGE_TAGS = {_messages.ERROR: 'danger'}
+
+# App ia: cota mensal padrão de tokens por usuário (editável na tela de configuração)
+IA_COTA_MENSAL_PADRAO = 50000

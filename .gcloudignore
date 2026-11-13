@@ -17,3 +17,9 @@
 __pycache__/
 # Ignored by the build system
 /setup.cfg
+# Local
+db_local.sqlite3
+db.sqlite3
+.claude/
+specs/
+.specify/

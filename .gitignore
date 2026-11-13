@@ -23,3 +23,7 @@ Thumbs.db
 *.tmp
 *.swp
 .idea/
+
+# Segredos e banco local
+env_variables.yaml
+db_local.sqlite3

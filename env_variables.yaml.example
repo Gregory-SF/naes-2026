@@ -1,0 +1,8 @@
+# Copie para env_variables.yaml (ignorado pelo git) e preencha antes do `gcloud app deploy`.
+env_variables:
+  SECRET_KEY: "gere-uma-chave-longa-e-aleatoria"
+  DATABASE_URL: "postgresql://USUARIO:SENHA@HOST/BANCO?sslmode=require"
+  ALLOWED_HOSTS: "SEU-PROJETO.appspot.com"
+  CSRF_TRUSTED_ORIGINS: "https://SEU-PROJETO.appspot.com"
+  # Opcional: chave da IA (também pode ser salva na tela IA > Configuração)
+  # IA_API_KEY: "..."
